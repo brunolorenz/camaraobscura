@@ -158,75 +158,73 @@
 
     /* ────────────────────────────────
        ── Level tool ──
-       Top-right corner, always visible,
-       outside #controls so it's always interactive
+       Top-right, always visible, always interactive
     ──────────────────────────────── */
     #level-wrap {
       position:absolute;
-      top:max(18px, env(safe-area-inset-top, 18px));
-      right:18px;
-      display:flex; flex-direction:column; align-items:flex-end; gap:6px;
+      top:max(14px, env(safe-area-inset-top, 14px));
+      right:14px;
       z-index:60;
       pointer-events:auto;
     }
 
-    /* Horizontal bar (gamma — left/right tilt) */
-    #level-bar {
-      width:72px; height:8px; border-radius:8px;
-      background:rgba(20,15,10,0.65); backdrop-filter:var(--blur);
-      border:1px solid rgba(232,213,183,0.15);
-      position:relative;
-    }
-    /* Center tick */
-    #level-bar::after {
-      content:''; position:absolute; left:50%; top:15%;
-      transform:translateX(-50%);
-      width:1px; height:70%; background:rgba(232,213,183,0.2);
-    }
-    #level-bubble {
-      position:absolute; top:50%; transform:translate(-50%,-50%);
-      width:8px; height:8px; border-radius:50%;
-      background:rgba(232,213,183,0.7);
-      transition:left 0.07s linear, background 0.25s ease, box-shadow 0.25s ease;
-      will-change:left;
-    }
-    #level-bar.leveled #level-bubble {
-      background:var(--green);
-      box-shadow:0 0 5px var(--green);
+    /* Card */
+    #level-card {
+      background:var(--ui-bg); backdrop-filter:var(--blur);
+      border:1px solid rgba(232,213,183,0.13); border-radius:14px;
+      padding:10px 12px;
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+      min-width:76px;
     }
 
-    /* Vertical bar (beta — front/back tilt) */
-    #level-bar-v {
-      width:8px; height:72px; border-radius:8px;
-      background:rgba(20,15,10,0.65); backdrop-filter:var(--blur);
-      border:1px solid rgba(232,213,183,0.15);
-      position:relative; align-self:flex-end;
-      display:none; /* shown after permission */
+    /* Each axis row */
+    .lvl-row { display:flex; flex-direction:column; align-items:center; gap:3px; width:100%; }
+    .lvl-axis {
+      font-size:0.5rem; letter-spacing:0.14em; text-transform:uppercase;
+      color:rgba(232,213,183,0.35);
     }
-    #level-bar-v::after {
-      content:''; position:absolute; top:50%; left:15%;
-      transform:translateY(-50%);
-      height:1px; width:70%; background:rgba(232,213,183,0.2);
+    /* Big number */
+    .lvl-num {
+      font-size:1.15rem; font-weight:500; letter-spacing:-0.03em;
+      color:var(--cream); line-height:1; min-width:56px; text-align:center;
+      transition:color 0.22s ease;
     }
-    #level-bubble-v {
-      position:absolute; left:50%; transform:translate(-50%,-50%);
-      width:8px; height:8px; border-radius:50%;
-      background:rgba(232,213,183,0.7);
-      transition:top 0.07s linear, background 0.25s ease, box-shadow 0.25s ease;
-      will-change:top;
+    .lvl-num.ok { color:var(--green); }
+
+    /* Mini bar + bubble */
+    .lvl-bar {
+      width:52px; height:4px; border-radius:4px;
+      background:rgba(232,213,183,0.1); position:relative;
     }
-    #level-bar-v.leveled #level-bubble-v {
-      background:var(--green);
-      box-shadow:0 0 5px var(--green);
+    /* center tick */
+    .lvl-bar::after {
+      content:''; position:absolute; left:50%; top:0;
+      transform:translateX(-50%);
+      width:1px; height:100%; background:rgba(232,213,183,0.18);
     }
+    .lvl-bubble {
+      position:absolute; top:50%; transform:translate(-50%,-50%);
+      width:7px; height:7px; border-radius:50%;
+      background:rgba(232,213,183,0.6);
+      transition:left 0.07s linear, background 0.22s ease, box-shadow 0.22s ease;
+    }
+    .lvl-bar.ok .lvl-bubble { background:var(--green); box-shadow:0 0 4px var(--green); }
+
+    /* divider */
+    .lvl-sep { width:100%; height:1px; background:rgba(232,213,183,0.07); }
+
+    /* beta row hidden until permission */
+    #lvl-row-beta { display:none; }
+    #lvl-sep-beta { display:none; }
 
     /* Permission button */
     #level-btn {
-      font-size:0.58rem; letter-spacing:0.1em; text-transform:uppercase;
-      color:rgba(232,213,183,0.45);
+      font-size:0.54rem; letter-spacing:0.1em; text-transform:uppercase;
+      color:rgba(232,213,183,0.4);
       background:var(--ui-bg); backdrop-filter:var(--blur);
-      border:1px solid rgba(232,213,183,0.12); border-radius:100px;
+      border:1px solid rgba(232,213,183,0.1); border-radius:100px;
       padding:4px 10px; cursor:pointer; white-space:nowrap;
+      margin-top:2px;
       transition:opacity 0.2s;
     }
     #level-btn:active { opacity:0.6; }
@@ -264,8 +262,25 @@
 
   <!-- Level — always on top, outside #controls -->
   <div id="level-wrap" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()">
-    <div id="level-bar"><div id="level-bubble" style="left:50%"></div></div>
-    <div id="level-bar-v"><div id="level-bubble-v" style="top:50%"></div></div>
+    <div id="level-card">
+      <!-- Gamma: left/right -->
+      <div class="lvl-row" id="lvl-row-gamma">
+        <span class="lvl-axis">lat</span>
+        <span class="lvl-num" id="lvl-num-gamma">—</span>
+        <div class="lvl-bar" id="lvl-bar-gamma">
+          <div class="lvl-bubble" id="lvl-bub-gamma" style="left:50%"></div>
+        </div>
+      </div>
+      <div class="lvl-sep" id="lvl-sep-beta"></div>
+      <!-- Beta: front/back — hidden until permission -->
+      <div class="lvl-row" id="lvl-row-beta">
+        <span class="lvl-axis">long</span>
+        <span class="lvl-num" id="lvl-num-beta">—</span>
+        <div class="lvl-bar" id="lvl-bar-beta">
+          <div class="lvl-bubble" id="lvl-bub-beta" style="left:50%"></div>
+        </div>
+      </div>
+    </div>
     <div id="level-btn" onclick="requestLevel()">nivelar</div>
   </div>
 
@@ -364,11 +379,16 @@
   const btnGrid     = document.getElementById('btn-grid');
   const btnFlip     = document.getElementById('btn-flip');
   const appEl       = document.getElementById('app');
-  const levelBar    = document.getElementById('level-bar');
-  const levelBubble = document.getElementById('level-bubble');
-  const levelBarV   = document.getElementById('level-bar-v');
-  const levelBubbleV= document.getElementById('level-bubble-v');
-  const levelBtn    = document.getElementById('level-btn');
+  // Level elements (new card design)
+  const lvlNumG  = document.getElementById('lvl-num-gamma');
+  const lvlBarG  = document.getElementById('lvl-bar-gamma');
+  const lvlBubG  = document.getElementById('lvl-bub-gamma');
+  const lvlNumB  = document.getElementById('lvl-num-beta');
+  const lvlBarB  = document.getElementById('lvl-bar-beta');
+  const lvlBubB  = document.getElementById('lvl-bub-beta');
+  const lvlRowB  = document.getElementById('lvl-row-beta');
+  const lvlSepB  = document.getElementById('lvl-sep-beta');
+  const levelBtn = document.getElementById('level-btn');
 
   // Returns true if el is inside a UI control (slider, button bar, level widget, etc.)
   function isUI(el) {
@@ -387,16 +407,9 @@
       });
       const track = stream.getVideoTracks()[0];
       videoTrack = track;
-      if (track.getCapabilities) {
-        const caps = track.getCapabilities();
-        if (caps.zoom) {
-          czSlider.min   = caps.zoom.min || 1;
-          czSlider.max   = caps.zoom.max || 5;
-          czSlider.step  = caps.zoom.step || 0.1;
-          czSlider.value = caps.zoom.min || 1;
-          camZoom = caps.zoom.min || 1;
-        }
-      }
+      // Zoom always 1–5× (hardware native zoom used if available, canvas fallback otherwise)
+      czSlider.min = 1; czSlider.max = 5; czSlider.step = 0.1; czSlider.value = 1;
+      camZoom = 1;
       videoEl.srcObject = stream;
       await videoEl.play();
       startDrawLoop();
@@ -561,28 +574,33 @@
   // ── Level tool ──
   // gamma = left/right tilt (−90 … +90)
   // beta  = front/back tilt (−180 … +180)
-  // We only use the range ±45° for display.
   // ──────────────────────────────────────────
+  function updateAxis(num, bar, bub, deg) {
+    const clamped = Math.max(-45, Math.min(45, deg));
+    const pct = 50 + (clamped / 45) * 40;
+    bub.style.left = pct + '%';
+    const isOk = Math.abs(deg) <= LEVEL_THRESHOLD;
+    num.textContent = (deg >= 0 ? '+' : '') + deg.toFixed(1) + '°';
+    num.classList.toggle('ok', isOk);
+    bar.classList.toggle('ok', isOk);
+  }
+
   function onOrientation(e) {
-    const g = e.gamma || 0; // left-right
-    const b = e.beta  || 0; // front-back
-
-    // Horizontal bar: clamp ±45° → 10%–90% of bar width
-    const pctH = 50 + Math.max(-40, Math.min(40, (g / 45) * 40));
-    levelBubble.style.left = pctH + '%';
-    levelBar.classList.toggle('leveled', Math.abs(g) <= LEVEL_THRESHOLD);
-
-    // Vertical bar: same logic
-    const pctV = 50 + Math.max(-40, Math.min(40, (b / 45) * 40));
-    levelBubbleV.style.top = pctV + '%';
-    levelBarV.classList.toggle('leveled', Math.abs(b) <= LEVEL_THRESHOLD);
+    const g = e.gamma || 0;
+    const b = e.beta  || 0;
+    updateAxis(lvlNumG, lvlBarG, lvlBubG, g);
+    updateAxis(lvlNumB, lvlBarB, lvlBubB, b);
   }
 
   function activateLevel() {
     if (levelActive) return;
     levelActive = true;
     levelBtn.classList.add('hidden');
-    levelBarV.style.display = 'block';
+    lvlRowB.style.display = 'flex';
+    lvlSepB.style.display = 'block';
+    // Seed display before first event
+    lvlNumG.textContent = '+0.0°';
+    lvlNumB.textContent = '+0.0°';
     window.addEventListener('deviceorientation', onOrientation, true);
   }
 
