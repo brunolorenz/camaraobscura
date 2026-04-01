@@ -305,7 +305,7 @@
          onclick="event.stopPropagation()">
       <span class="slider-label">zoom</span>
       <input class="v-slider" type="range" id="czoom-slider"
-        min="1" max="5" step="0.1" value="1"
+        min="1" max="2.5" step="0.1" value="1"
         oninput="setCameraZoom(this.value)" />
       <span class="slider-value" id="czoom-val">1×</span>
     </div>
@@ -407,8 +407,8 @@
       });
       const track = stream.getVideoTracks()[0];
       videoTrack = track;
-      // Zoom always 1–5× (hardware native zoom used if available, canvas fallback otherwise)
-      czSlider.min = 1; czSlider.max = 5; czSlider.step = 0.1; czSlider.value = 1;
+      // Zoom always 1.0–2.5× (hardware native zoom used if available, canvas fallback otherwise)
+      czSlider.min = 1; czSlider.max = 2.5; czSlider.step = 0.1; czSlider.value = 1;
       camZoom = 1;
       videoEl.srcObject = stream;
       await videoEl.play();
