@@ -1,634 +1,974 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Trace Easy" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#000000" />
-  <title>Trace Easy</title>
-  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23111'/%3E%3Ccircle cx='90' cy='90' r='50' fill='none' stroke='%23e8d5b7' stroke-width='6'/%3E%3Ccircle cx='90' cy='90' r='10' fill='%23e8d5b7'/%3E%3C/svg%3E" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Trace Easy">
+<meta name="theme-color" content="#000000">
+<title>Trace Easy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
 
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&display=swap');
+<!-- PWA manifest inline via JS -->
+<script>
+const manifest = {
+  name: "Trace Easy",
+  short_name: "Trace Easy",
+  start_url: ".",
+  display: "fullscreen",
+  background_color: "#000000",
+  theme_color: "#000000",
+  icons: [{
+    src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><circle cx='50' cy='50' r='30' fill='none' stroke='%23c8860a' stroke-width='4'/><line x1='50' y1='20' x2='50' y2='80' stroke='%23c8860a' stroke-width='2'/><line x1='20' y1='50' x2='80' y2='50' stroke='%23c8860a' stroke-width='2'/></svg>",
+    sizes: "any",
+    type: "image/svg+xml"
+  }]
+};
+const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+const url = URL.createObjectURL(blob);
+const link = document.createElement('link');
+link.rel = 'manifest';
+link.href = url;
+document.head.appendChild(link);
+</script>
 
-    *, *::before, *::after {
-      box-sizing: border-box; margin: 0; padding: 0;
-      -webkit-tap-highlight-color: transparent;
-      -webkit-touch-callout: none;
-      user-select: none;
-    }
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
-      --cream: #e8d5b7;
-      --ink: #1a1510;
-      --amber: #c8860a;
-      --green: #4caf74;
-      --ui-bg: rgba(20, 15, 10, 0.75);
-      --blur: blur(14px);
-    }
+:root {
+  --cream: #e8d5b7;
+  --ink: #1a1510;
+  --amber: #c8860a;
+  --black: #000000;
+  --ui-bg: rgba(0,0,0,0.72);
+  --ui-border: rgba(232,213,183,0.18);
+  --slider-track: rgba(232,213,183,0.15);
+  --slider-thumb: #c8860a;
+  --handle-size: 28px;
+}
 
-    html, body { width:100%; height:100%; overflow:hidden; background:#000; font-family:'DM Mono',monospace; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: 'DM Mono', monospace;
+  color: var(--cream);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
 
-    #app { position:fixed; inset:0; }
+#app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
 
-    /* ── Layers ── */
-    #camera-canvas, #grid-canvas {
-      position:absolute; inset:0; width:100%; height:100%; display:block;
-    }
-    #grid-canvas { pointer-events:none; display:none; }
-    #grid-canvas.show { display:block; }
+/* ── Camera layer ── */
+#cam-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
-    #trace-image {
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      pointer-events:none; overflow:hidden;
-    }
-    #trace-image img {
-      max-width:100%; max-height:100%; object-fit:contain;
-      pointer-events:none; transform-origin:center center;
-      will-change:transform,opacity;
-    }
+video#cam-src {
+  position: absolute;
+  width: 1px; height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
 
-    /* ── Camera error ── */
-    #camera-error {
-      position:absolute; inset:0; display:none;
-      align-items:center; justify-content:center;
-      background:#0a0805; color:var(--cream);
-      text-align:center; padding:2rem;
-      font-size:0.85rem; line-height:1.8;
-    }
-    #camera-error.show { display:flex; }
+/* ── Reference image layer ── */
+#ref-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
 
-    /* ── Empty state ── */
-    #empty-state {
-      position:absolute; inset:0; display:none;
-      flex-direction:column; align-items:center; justify-content:center;
-      gap:1.5rem; padding:2rem;
-    }
-    #empty-state.show { display:flex; }
-    #empty-state h1 {
-      font-family:'Instrument Serif',serif; font-style:italic;
-      font-size:2.2rem; color:var(--cream); letter-spacing:-0.01em;
-    }
-    #empty-state p {
-      font-size:0.78rem; color:rgba(232,213,183,0.6);
-      text-align:center; max-width:220px; line-height:1.7; letter-spacing:0.03em;
-    }
-    #upload-btn-empty {
-      width:64px; height:64px; border-radius:50%;
-      border:1.5px solid rgba(232,213,183,0.35);
-      background:rgba(232,213,183,0.08); color:var(--cream);
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer; transition:all 0.2s ease; backdrop-filter:var(--blur);
-    }
-    #upload-btn-empty:active { transform:scale(0.92); background:rgba(232,213,183,0.16); }
+#ref-img {
+  position: absolute;
+  transform-origin: 0 0;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+  display: none;
+  max-width: none;
+  image-rendering: auto;
+}
 
-    /* ── Tip ── */
-    #tip {
-      position:absolute;
-      top:max(20px, env(safe-area-inset-top, 20px));
-      left:50%; transform:translateX(-50%);
-      background:var(--ui-bg); backdrop-filter:var(--blur);
-      color:var(--cream); font-size:0.7rem; letter-spacing:0.08em;
-      text-transform:uppercase; padding:8px 18px; border-radius:100px;
-      border:1px solid rgba(232,213,183,0.15); white-space:nowrap;
-      opacity:0; pointer-events:none; transition:opacity 0.4s ease;
-      z-index:50;
-    }
-    #tip.show { opacity:1; pointer-events:auto; }
+/* ── Grid overlay ── */
+#grid-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: none;
+}
 
-    /* ── Controls wrapper ── */
-    #controls {
-      position:absolute; inset:0; pointer-events:none;
-      opacity:0; transition:opacity 0.35s ease;
-    }
-    #controls.show { opacity:1; pointer-events:auto; }
+/* ── Perspective handles ── */
+#handles-layer {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
 
-    /* ── Vertical slider tracks ── */
-    .slider-track {
-      position:absolute; top:50%; transform:translateY(-50%);
-      display:flex; flex-direction:column; align-items:center; gap:10px;
-      padding:14px 10px;
-      background:var(--ui-bg); backdrop-filter:var(--blur);
-      border-radius:24px; border:1px solid rgba(232,213,183,0.12);
-      touch-action: none;  /* block browser scroll/pan on this element */
-    }
-    #opacity-track { left:12px; }
-    #zoom-track    { right:12px; }
+.persp-handle {
+  position: absolute;
+  width: var(--handle-size);
+  height: var(--handle-size);
+  background: var(--amber);
+  border: 2.5px solid #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+  box-shadow: 0 0 0 3px rgba(200,134,10,0.3), 0 2px 8px rgba(0,0,0,0.6);
+  transition: box-shadow 0.15s;
+  z-index: 100;
+}
+.persp-handle:active { box-shadow: 0 0 0 6px rgba(200,134,10,0.4), 0 2px 12px rgba(0,0,0,0.8); }
 
-    .slider-label { font-size:0.6rem; letter-spacing:0.1em; text-transform:uppercase; color:rgba(232,213,183,0.5); }
-    .slider-value  { font-size:0.65rem; color:var(--cream); letter-spacing:0.04em; min-width:28px; text-align:center; }
+/* ── Sliders ── */
+.slider-wrap {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 50;
+  transition: opacity 0.3s;
+}
+#slider-left  { left: 10px; }
+#slider-right { right: 10px; }
 
-    .v-slider {
-      -webkit-appearance:none; appearance:none;
-      writing-mode:vertical-lr; direction:rtl;
-      width:4px; height:140px;
-      background:rgba(232,213,183,0.2); border-radius:4px; outline:none; cursor:pointer;
-      touch-action: none;
-    }
-    .v-slider::-webkit-slider-thumb {
-      -webkit-appearance:none; appearance:none;
-      width:24px; height:24px; border-radius:50%;
-      background:var(--cream); border:2px solid var(--ink);
-      box-shadow:0 2px 8px rgba(0,0,0,0.5); cursor:pointer;
-    }
+.slider-label {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--cream);
+  opacity: 0.6;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
 
-    /* ── Bottom bar ── */
-    #bottom-bar {
-      position:absolute;
-      bottom:max(24px, env(safe-area-inset-bottom, 24px));
-      left:50%; transform:translateX(-50%);
-      display:flex; gap:14px; align-items:center;
-    }
-    .btn-round {
-      width:56px; height:56px; border-radius:50%;
-      border:1.5px solid rgba(232,213,183,0.25);
-      background:var(--ui-bg); backdrop-filter:var(--blur);
-      color:var(--cream);
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer; transition:all 0.18s ease;
-    }
-    .btn-round:active { transform:scale(0.9); background:rgba(232,213,183,0.18); }
-    .btn-round.active { border-color:var(--amber); background:rgba(200,134,10,0.22); }
-    .btn-round.hidden-btn { display:none; }
-    .icon { pointer-events:none; }
+input[type=range].vertical {
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 28px;
+  height: 160px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+input[type=range].vertical::-webkit-slider-runnable-track {
+  width: 4px;
+  background: var(--slider-track);
+  border-radius: 2px;
+  border: 1px solid rgba(232,213,183,0.12);
+}
+input[type=range].vertical::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--amber);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  margin-left: -8px;
+  transition: transform 0.1s;
+}
+input[type=range].vertical:active::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
 
-    /* ────────────────────────────────
-       ── Level tool ──
-       Top-right, always visible, always interactive
-    ──────────────────────────────── */
-    #level-wrap {
-      position:absolute;
-      top:max(14px, env(safe-area-inset-top, 14px));
-      right:14px;
-      z-index:60;
-      pointer-events:auto;
-    }
+.slider-val {
+  font-size: 9px;
+  color: var(--cream);
+  opacity: 0.5;
+  letter-spacing: 0.05em;
+}
 
-    /* Card */
-    #level-card {
-      background:var(--ui-bg); backdrop-filter:var(--blur);
-      border:1px solid rgba(232,213,183,0.13); border-radius:14px;
-      padding:10px 12px;
-      display:flex; flex-direction:column; align-items:center; gap:8px;
-      min-width:76px;
-    }
+/* ── Top bar ── */
+#top-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+  padding: env(safe-area-inset-top, 0px) 16px 0;
+  z-index: 60;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
 
-    /* Each axis row */
-    .lvl-row { display:flex; flex-direction:column; align-items:center; gap:3px; width:100%; }
-    .lvl-axis {
-      font-size:0.5rem; letter-spacing:0.14em; text-transform:uppercase;
-      color:rgba(232,213,183,0.35);
-    }
-    /* Big number */
-    .lvl-num {
-      font-size:1.15rem; font-weight:500; letter-spacing:-0.03em;
-      color:var(--cream); line-height:1; min-width:56px; text-align:center;
-      transition:color 0.22s ease;
-    }
-    .lvl-num.ok { color:var(--green); }
+#app-title {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 22px;
+  color: var(--cream);
+  letter-spacing: 0.01em;
+  opacity: 0.9;
+  pointer-events: none;
+  user-select: none;
+}
 
-    /* Mini bar + bubble */
-    .lvl-bar {
-      width:52px; height:4px; border-radius:4px;
-      background:rgba(232,213,183,0.1); position:relative;
-    }
-    /* center tick */
-    .lvl-bar::after {
-      content:''; position:absolute; left:50%; top:0;
-      transform:translateX(-50%);
-      width:1px; height:100%; background:rgba(232,213,183,0.18);
-    }
-    .lvl-bubble {
-      position:absolute; top:50%; transform:translate(-50%,-50%);
-      width:7px; height:7px; border-radius:50%;
-      background:rgba(232,213,183,0.6);
-      transition:left 0.07s linear, background 0.22s ease, box-shadow 0.22s ease;
-    }
-    .lvl-bar.ok .lvl-bubble { background:var(--green); box-shadow:0 0 4px var(--green); }
+/* ── Bottom bar ── */
+#bottom-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 10px 12px calc(env(safe-area-inset-bottom, 16px) + 10px);
+  background: linear-gradient(to top, rgba(0,0,0,0.72), transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 6px;
+  z-index: 60;
+  transition: opacity 0.3s;
+}
 
-    /* divider */
-    .lvl-sep { width:100%; height:1px; background:rgba(232,213,183,0.07); }
+.btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 8px 10px 6px;
+  color: var(--cream);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  min-width: 52px;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.btn:active { transform: scale(0.92); background: rgba(200,134,10,0.18); }
+.btn.active {
+  background: rgba(200,134,10,0.22);
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.btn svg { display: block; }
+.btn span {
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  line-height: 1;
+  opacity: 0.75;
+}
+.btn.active span { opacity: 1; }
 
-    /* beta row hidden until permission */
-    #lvl-row-beta { display:none; }
-    #lvl-sep-beta { display:none; }
+/* ── No-camera fallback ── */
+#no-cam {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  background: #0a0a0a;
+  color: var(--cream);
+  text-align: center;
+  padding: 24px;
+  z-index: 200;
+}
+#no-cam h2 { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 24px; }
+#no-cam p { font-size: 13px; opacity: 0.6; line-height: 1.5; max-width: 280px; }
+#no-cam button {
+  background: var(--amber);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 24px;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  cursor: pointer;
+}
 
-    /* Permission button */
-    #level-btn {
-      font-size:0.54rem; letter-spacing:0.1em; text-transform:uppercase;
-      color:rgba(232,213,183,0.4);
-      background:var(--ui-bg); backdrop-filter:var(--blur);
-      border:1px solid rgba(232,213,183,0.1); border-radius:100px;
-      padding:4px 10px; cursor:pointer; white-space:nowrap;
-      margin-top:2px;
-      transition:opacity 0.2s;
-    }
-    #level-btn:active { opacity:0.6; }
-    #level-btn.hidden { display:none; }
-  </style>
+/* ── Hidden UI state ── */
+.ui-hidden #top-bar,
+.ui-hidden #bottom-bar,
+.ui-hidden .slider-wrap {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Grid SVG ── */
+#grid-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+</style>
 </head>
-
 <body>
+
 <div id="app">
+  <canvas id="cam-canvas"></canvas>
+  <video id="cam-src" autoplay playsinline muted></video>
 
-  <canvas id="camera-canvas"></canvas>
-  <canvas id="grid-canvas"></canvas>
-
-  <div id="trace-image"><img id="img-el" src="" alt="" style="display:none" /></div>
-
-  <div id="camera-error">
-    <div>
-      <div style="font-size:2rem;margin-bottom:1rem">📷</div>
-      Câmera não pôde ser acessada.<br/>
-      Verifique: <em>Ajustes → Safari → Câmera → Permitir</em>
-      <div style="margin-top:1rem;opacity:0.5;font-size:0.7rem">Este app requer HTTPS.</div>
-    </div>
+  <div id="ref-layer">
+    <img id="ref-img" alt="" draggable="false">
   </div>
 
-  <div id="empty-state" class="show">
-    <h1>Trace Easy</h1>
-    <p>Carregue uma imagem para usar como guia de decalque transparente.</p>
-    <div id="upload-btn-empty" onclick="triggerUpload()">
-      <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
-        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+  <canvas id="grid-layer"></canvas>
+
+  <div id="handles-layer">
+    <div class="persp-handle" id="h-tl" data-idx="0"></div>
+    <div class="persp-handle" id="h-tr" data-idx="1"></div>
+    <div class="persp-handle" id="h-br" data-idx="2"></div>
+    <div class="persp-handle" id="h-bl" data-idx="3"></div>
+  </div>
+
+  <!-- Sliders -->
+  <div class="slider-wrap" id="slider-left">
+    <div class="slider-label">opac.</div>
+    <input type="range" class="vertical" id="opacity-slider" min="0" max="100" value="60">
+    <div class="slider-val" id="opacity-val">60%</div>
+  </div>
+
+  <div class="slider-wrap" id="slider-right">
+    <div class="slider-label">zoom</div>
+    <input type="range" class="vertical" id="zoom-slider" min="10" max="25" value="10">
+    <div class="slider-val" id="zoom-val">1×</div>
+  </div>
+
+  <!-- Top bar -->
+  <div id="top-bar">
+    <span id="app-title">Trace Easy</span>
+  </div>
+
+  <!-- Bottom bar -->
+  <div id="bottom-bar">
+    <!-- Upload -->
+    <button class="btn" id="btn-upload" aria-label="Carregar imagem">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
-    </div>
+      <span>Foto</span>
+    </button>
+    <input type="file" id="file-input" accept="image/*" style="display:none">
+
+    <!-- Rotate -->
+    <button class="btn" id="btn-rotate" aria-label="Rotacionar 90°">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+      </svg>
+      <span>Girar</span>
+    </button>
+
+    <!-- Mirror -->
+    <button class="btn" id="btn-mirror" aria-label="Espelhar">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="3" x2="12" y2="21"/>
+        <path d="M5 7l-3 5 3 5M19 7l3 5-3 5"/>
+        <path d="M5 12H1M23 12h-4"/>
+      </svg>
+      <span>Espelhar</span>
+    </button>
+
+    <!-- Grid -->
+    <button class="btn" id="btn-grid" aria-label="Grade de composição">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="1"/>
+        <line x1="9" y1="3" x2="9" y2="21"/>
+        <line x1="15" y1="3" x2="15" y2="21"/>
+        <line x1="3" y1="9" x2="21" y2="9"/>
+        <line x1="3" y1="15" x2="21" y2="15"/>
+      </svg>
+      <span>Grade</span>
+    </button>
+
+    <!-- Perspective -->
+    <button class="btn" id="btn-persp" aria-label="Modo perspectiva">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="2,20 8,4 16,4 22,20"/>
+        <line x1="5" y1="20" x2="19" y2="20"/>
+        <line x1="8" y1="4" x2="16" y2="4"/>
+      </svg>
+      <span>Perspect.</span>
+    </button>
   </div>
 
-  <!-- Level — always on top, outside #controls -->
-  <div id="level-wrap" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()">
-    <div id="level-card">
-      <!-- Gamma: left/right -->
-      <div class="lvl-row" id="lvl-row-gamma">
-        <span class="lvl-axis">lat</span>
-        <span class="lvl-num" id="lvl-num-gamma">—</span>
-        <div class="lvl-bar" id="lvl-bar-gamma">
-          <div class="lvl-bubble" id="lvl-bub-gamma" style="left:50%"></div>
-        </div>
-      </div>
-      <div class="lvl-sep" id="lvl-sep-beta"></div>
-      <!-- Beta: front/back — hidden until permission -->
-      <div class="lvl-row" id="lvl-row-beta">
-        <span class="lvl-axis">long</span>
-        <span class="lvl-num" id="lvl-num-beta">—</span>
-        <div class="lvl-bar" id="lvl-bar-beta">
-          <div class="lvl-bubble" id="lvl-bub-beta" style="left:50%"></div>
-        </div>
-      </div>
-    </div>
-    <div id="level-btn" onclick="requestLevel()">nivelar</div>
+  <!-- No camera fallback -->
+  <div id="no-cam">
+    <h2>Câmera indisponível</h2>
+    <p>Permita o acesso à câmera nas configurações do Safari para usar o Trace Easy.</p>
+    <button id="btn-retry-cam">Tentar novamente</button>
   </div>
-
-  <!-- Tip -->
-  <div id="tip" onclick="hideTip()">Toque para ocultar controles</div>
-
-  <!-- Controls (toggle on tap) -->
-  <div id="controls" class="show">
-
-    <div class="slider-track" id="opacity-track"
-         ontouchstart="event.stopPropagation()" ontouchmove="event.stopPropagation()"
-         onclick="event.stopPropagation()">
-      <span class="slider-label">opac</span>
-      <input class="v-slider" type="range" id="opacity-slider"
-        min="0" max="1" step="0.01" value="0.5"
-        oninput="setOpacity(this.value)" />
-      <span class="slider-value" id="opacity-val">50%</span>
-    </div>
-
-    <div class="slider-track" id="zoom-track" style="display:none"
-         ontouchstart="event.stopPropagation()" ontouchmove="event.stopPropagation()"
-         onclick="event.stopPropagation()">
-      <span class="slider-label">zoom</span>
-      <input class="v-slider" type="range" id="czoom-slider"
-        min="1" max="2.5" step="0.1" value="1"
-        oninput="setCameraZoom(this.value)" />
-      <span class="slider-value" id="czoom-val">1×</span>
-    </div>
-
-    <div id="bottom-bar"
-         ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()">
-      <div class="btn-round" onclick="triggerUpload()">
-        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
-          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
-        </svg>
-      </div>
-      <div class="btn-round hidden-btn" id="btn-rotate" onclick="rotateImage()">
-        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="23 4 23 10 17 10"/>
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-        </svg>
-      </div>
-      <div class="btn-round hidden-btn" id="btn-grid" onclick="toggleGrid()">
-        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-        </svg>
-      </div>
-      <div class="btn-round hidden-btn" id="btn-flip" onclick="flipImage()">
-        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-        </svg>
-      </div>
-    </div>
-  </div>
-
-  <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(this)" />
 </div>
 
 <script>
 (function() {
-  // ── State ──
-  let opacity  = 0.5, rotation = 0, flipped = false;
-  let imgZoom  = 1,   camZoom  = 1;
-  let position = { x:0, y:0 };
-  let showGrid = false, controlsVisible = true, hasImage = false;
+'use strict';
 
-  // Touch tracking — pan only fires if touch originated on bare canvas
-  let panActive  = false;
-  let pinchActive= false;
-  let pinchDist0 = 0, pinchZoom0 = 1;
-  let lastPan    = { x:0, y:0 };
+// ── State ───────────────────────────────────────────────────────────────
+const state = {
+  opacity: 0.6,
+  camZoom: 1.0,
+  rotation: 0,       // 0,90,180,270
+  mirrored: false,
+  gridOn: false,
+  perspOn: false,
+  uiVisible: true,
+  imgLoaded: false,
 
-  // Camera
-  let videoEl = null, videoTrack = null, rafId = null;
+  // Pan/pinch state
+  panX: 0, panY: 0,
+  scaleImg: 1,
+  baseScale: 1,        // fitted scale when image first placed
+  imgNatW: 0, imgNatH: 0,
 
-  // Level
-  let levelActive = false;
-  const LEVEL_THRESHOLD = 2.0; // degrees
+  // Perspective: screen corners [TL,TR,BR,BL]
+  perspHandles: [[0,0],[0,0],[0,0],[0,0]],
+  imgRect: { x:0, y:0, w:0, h:0 }, // rendered image rect in screen coords
+};
 
-  // Elements
-  const camCanvas   = document.getElementById('camera-canvas');
-  const gridCanvas  = document.getElementById('grid-canvas');
-  const imgEl       = document.getElementById('img-el');
-  const controls    = document.getElementById('controls');
-  const emptyState  = document.getElementById('empty-state');
-  const cameraErr   = document.getElementById('camera-error');
-  const tip         = document.getElementById('tip');
-  const czSlider    = document.getElementById('czoom-slider');
-  const czVal       = document.getElementById('czoom-val');
-  const opVal       = document.getElementById('opacity-val');
-  const zoomTrack   = document.getElementById('zoom-track');
-  const btnRotate   = document.getElementById('btn-rotate');
-  const btnGrid     = document.getElementById('btn-grid');
-  const btnFlip     = document.getElementById('btn-flip');
-  const appEl       = document.getElementById('app');
-  // Level elements (new card design)
-  const lvlNumG  = document.getElementById('lvl-num-gamma');
-  const lvlBarG  = document.getElementById('lvl-bar-gamma');
-  const lvlBubG  = document.getElementById('lvl-bub-gamma');
-  const lvlNumB  = document.getElementById('lvl-num-beta');
-  const lvlBarB  = document.getElementById('lvl-bar-beta');
-  const lvlBubB  = document.getElementById('lvl-bub-beta');
-  const lvlRowB  = document.getElementById('lvl-row-beta');
-  const lvlSepB  = document.getElementById('lvl-sep-beta');
-  const levelBtn = document.getElementById('level-btn');
+// ── DOM refs ─────────────────────────────────────────────────────────────
+const camCanvas    = document.getElementById('cam-canvas');
+const camCtx       = camCanvas.getContext('2d');
+const video        = document.getElementById('cam-src');
+const refImg       = document.getElementById('ref-img');
+const refLayer     = document.getElementById('ref-layer');
+const gridCanvas   = document.getElementById('grid-layer');
+const handlesLayer = document.getElementById('handles-layer');
+const opSlider     = document.getElementById('opacity-slider');
+const zoomSlider   = document.getElementById('zoom-slider');
+const opVal        = document.getElementById('opacity-val');
+const zoomVal      = document.getElementById('zoom-val');
+const appEl        = document.getElementById('app');
+const noCam        = document.getElementById('no-cam');
+const fileInput    = document.getElementById('file-input');
 
-  // Returns true if el is inside a UI control (slider, button bar, level widget, etc.)
-  function isUI(el) {
-    return !!el.closest('.slider-track, #bottom-bar, #level-wrap, #tip, #empty-state, #camera-error, #upload-btn-empty');
+const handles = [
+  document.getElementById('h-tl'),
+  document.getElementById('h-tr'),
+  document.getElementById('h-br'),
+  document.getElementById('h-bl'),
+];
+
+// ── Camera ───────────────────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+      audio: false,
+    });
+    video.srcObject = stream;
+    await video.play();
+    noCam.style.display = 'none';
+    renderLoop();
+  } catch(e) {
+    console.warn('Camera error:', e);
+    noCam.style.display = 'flex';
   }
+}
 
-  // ── Camera ──
-  async function startCamera() {
-    videoEl = document.createElement('video');
-    videoEl.autoplay = true; videoEl.playsInline = true;
-    videoEl.muted = true; videoEl.setAttribute('playsinline','');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 } },
-        audio:false
-      });
-      const track = stream.getVideoTracks()[0];
-      videoTrack = track;
-      // Zoom always 1.0–2.5× (hardware native zoom used if available, canvas fallback otherwise)
-      czSlider.min = 1; czSlider.max = 2.5; czSlider.step = 0.1; czSlider.value = 1;
-      camZoom = 1;
-      videoEl.srcObject = stream;
-      await videoEl.play();
-      startDrawLoop();
-    } catch(e) {
-      camCanvas.style.display = 'none';
-      cameraErr.classList.add('show');
+let rafId;
+function renderLoop() {
+  if (rafId) cancelAnimationFrame(rafId);
+  function draw() {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    if (camCanvas.width !== W || camCanvas.height !== H) {
+      camCanvas.width  = W;
+      camCanvas.height = H;
     }
-  }
-
-  function startDrawLoop() {
-    const ctx = camCanvas.getContext('2d');
-    function draw() {
-      if (!videoEl || videoEl.readyState < videoEl.HAVE_ENOUGH_DATA) {
-        rafId = requestAnimationFrame(draw); return;
+    if (video.readyState >= 2) {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (vw && vh) {
+        const z = state.camZoom;
+        const aspect = vw / vh;
+        let dw, dh;
+        if (W / H > aspect) { dw = W * z; dh = dw / aspect; }
+        else                  { dh = H * z; dw = dh * aspect; }
+        const dx = (W - dw) / 2;
+        const dy = (H - dh) / 2;
+        camCtx.drawImage(video, dx, dy, dw, dh);
       }
-      const W = window.innerWidth, H = window.innerHeight;
-      if (camCanvas.width !== W || camCanvas.height !== H) {
-        camCanvas.width = W; camCanvas.height = H;
-        gridCanvas.width = W; gridCanvas.height = H;
-      }
-      ctx.clearRect(0,0,W,H);
-      const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
-      if (!vw || !vh) { rafId = requestAnimationFrame(draw); return; }
-      const vr = vw/vh, cr = W/H;
-      let sx=0, sy=0, sw=vw, sh=vh;
-      if (vr > cr) { sw = vh*cr; sx = (vw-sw)/2; }
-      else          { sh = vw/cr; sy = (vh-sh)/2; }
-      if (camZoom > 1) {
-        const zf=1/camZoom, nw=sw*zf, nh=sh*zf;
-        sx += (sw-nw)/2; sy += (sh-nh)/2; sw=nw; sh=nh;
-      }
-      ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, W, H);
-      if (showGrid) {
-        const gc = gridCanvas.getContext('2d');
-        gc.clearRect(0,0,W,H);
-        gc.strokeStyle = 'rgba(232,213,183,0.28)'; gc.lineWidth = 1;
-        const sp = Math.min(W,H)/6;
-        for(let x=sp; x<W; x+=sp){ gc.beginPath(); gc.moveTo(x,0); gc.lineTo(x,H); gc.stroke(); }
-        for(let y=sp; y<H; y+=sp){ gc.beginPath(); gc.moveTo(0,y); gc.lineTo(W,y); gc.stroke(); }
-      }
-      rafId = requestAnimationFrame(draw);
     }
     rafId = requestAnimationFrame(draw);
   }
+  draw();
+}
 
-  // ── Transform ──
-  function applyTransform() {
-    const sx = flipped ? -imgZoom : imgZoom;
-    imgEl.style.transform =
-      `translate(${position.x}px,${position.y}px) rotate(${rotation}deg) scale(${sx},${imgZoom})`;
-    imgEl.style.opacity = opacity;
+// ── Zoom slider → camera zoom ─────────────────────────────────────────────
+function updateCamZoom(v) {
+  state.camZoom = 1 + (v - 10) / 10 * 1.5; // maps 10-25 → 1.0-2.5
+  zoomVal.textContent = state.camZoom.toFixed(1) + '×';
+}
+
+zoomSlider.addEventListener('input', () => updateCamZoom(parseInt(zoomSlider.value)));
+zoomSlider.addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
+zoomSlider.addEventListener('touchmove',  e => e.stopPropagation(), {passive:false});
+zoomSlider.addEventListener('touchend',   e => e.stopPropagation(), {passive:false});
+
+// ── Opacity slider ────────────────────────────────────────────────────────
+opSlider.addEventListener('input', () => {
+  state.opacity = parseInt(opSlider.value) / 100;
+  opVal.textContent = opSlider.value + '%';
+  applyImageTransform();
+});
+opSlider.addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
+opSlider.addEventListener('touchmove',  e => e.stopPropagation(), {passive:false});
+opSlider.addEventListener('touchend',   e => e.stopPropagation(), {passive:false});
+
+// ── Image loading ─────────────────────────────────────────────────────────
+document.getElementById('btn-upload').addEventListener('click', e => {
+  e.stopPropagation();
+  fileInput.click();
+});
+document.getElementById('btn-upload').addEventListener('touchend', e => e.stopPropagation());
+
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  refImg.onload = () => {
+    state.imgNatW = refImg.naturalWidth;
+    state.imgNatH = refImg.naturalHeight;
+    state.imgLoaded = true;
+    fitImage();
+    fileInput.value = '';
+  };
+  refImg.src = url;
+  refImg.style.display = 'block';
+});
+
+function fitImage() {
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  let rw = state.imgNatW, rh = state.imgNatH;
+  // apply rotation to decide dimensions
+  const r = state.rotation;
+  const isLandscape = rw > rh;
+  let fitW, fitH;
+  if (r === 90 || r === 270) { fitW = H; fitH = W; } // swapped
+  else                        { fitW = W; fitH = H; }
+  const scale = Math.min(fitW / rw, fitH / rh) * 0.85;
+  state.baseScale = scale;
+  state.scaleImg  = scale;
+  state.panX = (W - rw * scale) / 2;
+  state.panY = (H - rh * scale) / 2;
+  applyImageTransform();
+  if (state.perspOn) exitPerspective();
+}
+
+// ── Rotate ────────────────────────────────────────────────────────────────
+document.getElementById('btn-rotate').addEventListener('click', e => {
+  e.stopPropagation();
+  if (!state.imgLoaded) return;
+  state.rotation = (state.rotation + 90) % 360;
+  // Re-fit on rotation
+  fitImage();
+});
+document.getElementById('btn-rotate').addEventListener('touchend', e => e.stopPropagation());
+
+// ── Mirror ────────────────────────────────────────────────────────────────
+document.getElementById('btn-mirror').addEventListener('click', e => {
+  e.stopPropagation();
+  if (!state.imgLoaded) return;
+  state.mirrored = !state.mirrored;
+  document.getElementById('btn-mirror').classList.toggle('active', state.mirrored);
+  applyImageTransform();
+});
+document.getElementById('btn-mirror').addEventListener('touchend', e => e.stopPropagation());
+
+// ── Grid ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-grid').addEventListener('click', e => {
+  e.stopPropagation();
+  state.gridOn = !state.gridOn;
+  document.getElementById('btn-grid').classList.toggle('active', state.gridOn);
+  drawGrid();
+});
+document.getElementById('btn-grid').addEventListener('touchend', e => e.stopPropagation());
+
+function drawGrid() {
+  const c = gridCanvas;
+  c.style.display = state.gridOn ? 'block' : 'none';
+  if (!state.gridOn) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle = 'rgba(200,134,10,0.35)';
+  ctx.lineWidth = 0.8;
+  // Rule of thirds
+  for (let i = 1; i <= 2; i++) {
+    ctx.beginPath(); ctx.moveTo(W*i/3, 0); ctx.lineTo(W*i/3, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, H*i/3); ctx.lineTo(W, H*i/3); ctx.stroke();
   }
+  // Center cross faint
+  ctx.strokeStyle = 'rgba(200,134,10,0.18)';
+  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+  // Diagonal aids
+  ctx.strokeStyle = 'rgba(200,134,10,0.12)';
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(W,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W,0); ctx.lineTo(0,H); ctx.stroke();
+}
 
-  // ── Public API ──
-  window.setOpacity = v => {
-    opacity = parseFloat(v);
-    opVal.textContent = Math.round(opacity*100) + '%';
-    applyTransform();
-  };
-  window.setCameraZoom = v => {
-    camZoom = parseFloat(v);
-    czVal.textContent = camZoom.toFixed(1) + '×';
-    if (videoTrack?.applyConstraints)
-      videoTrack.applyConstraints({ advanced:[{ zoom:camZoom }] }).catch(()=>{});
-  };
-  window.rotateImage = () => { rotation = (rotation+90)%360; applyTransform(); };
-  window.flipImage = () => {
-    flipped = !flipped;
-    btnFlip.classList.toggle('active', flipped);
-    applyTransform();
-  };
-  window.toggleGrid = () => {
-    showGrid = !showGrid;
-    btnGrid.classList.toggle('active', showGrid);
-    gridCanvas.classList.toggle('show', showGrid);
-    if (!showGrid) gridCanvas.getContext('2d').clearRect(0,0,gridCanvas.width,gridCanvas.height);
-  };
-  window.triggerUpload = () => document.getElementById('file-input').click();
-  window.handleFile = input => {
-    const file = input.files[0];
-    if (!file?.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-      imgEl.src = e.target.result; imgEl.style.display = '';
-      imgEl.onload = () => {
-        position = {x:0,y:0}; rotation = 0; flipped = false; imgZoom = 1;
-        applyTransform();
-      };
-      hasImage = true;
-      emptyState.classList.remove('show');
-      btnRotate.classList.remove('hidden-btn');
-      btnGrid.classList.remove('hidden-btn');
-      btnFlip.classList.remove('hidden-btn');
-      zoomTrack.style.display = '';
-      showTip(); showControls();
-    };
-    reader.readAsDataURL(file);
-    input.value = '';
-  };
-  window.hideTip = () => tip.classList.remove('show');
+// ── Apply image transform (non-perspective) ───────────────────────────────
+function applyImageTransform() {
+  if (!state.imgLoaded) return;
+  if (state.perspOn) return; // handled separately
+  const s = state.scaleImg;
+  const mirrorX = state.mirrored ? -1 : 1;
+  // Build CSS transform
+  const tx = state.panX;
+  const ty = state.panY;
+  // We combine: translate → scale → mirror → rotate
+  // Rotation center: image center after scale
+  const hw = state.imgNatW * s / 2;
+  const hh = state.imgNatH * s / 2;
+  // Transform steps (applied right-to-left in CSS):
+  // 1. place at tx,ty
+  // 2. scale s
+  // 3. mirror
+  // 4. rotate
+  // Using matrix to keep transform-origin simple:
+  refImg.style.transformOrigin = '0 0';
+  refImg.style.width  = state.imgNatW + 'px';
+  refImg.style.height = state.imgNatH + 'px';
 
-  function showTip()      { tip.classList.add('show'); setTimeout(()=>tip.classList.remove('show'), 3500); }
-  function showControls() { controls.classList.add('show'); controlsVisible = true; }
-  function hideControls() { controls.classList.remove('show'); controlsVisible = false; tip.classList.remove('show'); }
+  // Compose manually
+  const cx = tx + hw;
+  const cy = ty + hh;
+  const rot = state.rotation;
+  refImg.style.transform =
+    `translate(${cx}px,${cy}px) rotate(${rot}deg) scaleX(${mirrorX}) scale(${s}) translate(-${state.imgNatW/2}px,-${state.imgNatH/2}px)`;
+  refImg.style.opacity = state.opacity;
 
-  // ── Tap to toggle controls ──
-  appEl.addEventListener('click', e => {
-    if (!hasImage || isUI(e.target)) return;
-    controlsVisible ? hideControls() : showControls();
+  // Update rect for perspective handle initialization
+  // We approximate the screen bounding box of the image
+  updateImgRect();
+}
+
+function updateImgRect() {
+  // Get bounding rect of rendered image element
+  const rect = refImg.getBoundingClientRect();
+  state.imgRect = { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+}
+
+// ── Perspective mode ──────────────────────────────────────────────────────
+document.getElementById('btn-persp').addEventListener('click', e => {
+  e.stopPropagation();
+  if (!state.imgLoaded) return;
+  if (state.perspOn) exitPerspective();
+  else enterPerspective();
+});
+document.getElementById('btn-persp').addEventListener('touchend', e => e.stopPropagation());
+
+function enterPerspective() {
+  state.perspOn = true;
+  document.getElementById('btn-persp').classList.add('active');
+  handlesLayer.style.display = 'block';
+
+  // Snapshot current rendered bounding rect
+  updateImgRect();
+  const { x, y, w, h } = state.imgRect;
+
+  state.perspHandles = [
+    [x,     y    ],  // TL
+    [x + w, y    ],  // TR
+    [x + w, y + h],  // BR
+    [x,     y + h],  // BL
+  ];
+  positionHandles();
+  applyPerspective();
+}
+
+function exitPerspective() {
+  state.perspOn = false;
+  document.getElementById('btn-persp').classList.remove('active');
+  handlesLayer.style.display = 'none';
+  // Restore CSS transform
+  applyImageTransform();
+}
+
+function positionHandles() {
+  handles.forEach((h, i) => {
+    h.style.left = state.perspHandles[i][0] + 'px';
+    h.style.top  = state.perspHandles[i][1] + 'px';
   });
+}
 
-  // ── Touch: pinch + pan ──
-  // FIX: only activate pan/pinch if the first touch did NOT land on a UI element.
-  appEl.addEventListener('touchstart', e => {
-    if (!hasImage) return;
+// Compute homography from 4 src corners (unit square) to 4 dst points
+// Returns matrix3d string for CSS
+function computeMatrix3d(dst) {
+  // dst = [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] TL,TR,BR,BL
+  const [p0, p1, p2, p3] = dst;
+  // Solve homography H from unit square [0,0],[1,0],[1,1],[0,1]
+  // Using direct linear transform (analytical for 4 point)
+  const x0=p0[0], y0=p0[1];
+  const x1=p1[0], y1=p1[1];
+  const x2=p2[0], y2=p2[1];
+  const x3=p3[0], y3=p3[1];
 
-    // Check every new touch point — if any landed on UI, abort
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      const el = document.elementFromPoint(t.clientX, t.clientY);
-      if (el && isUI(el)) { panActive = false; pinchActive = false; return; }
-    }
-
-    if (e.touches.length >= 2) {
-      panActive  = false;
-      pinchActive = true;
-      pinchDist0 = getDist(e.touches);
-      pinchZoom0 = imgZoom;
-    } else {
-      panActive  = true;
-      pinchActive = false;
-      lastPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-  }, { passive: true });
-
-  appEl.addEventListener('touchmove', e => {
-    if (!hasImage) return;
-    if (e.touches.length >= 2 && pinchActive) {
-      e.preventDefault();
-      imgZoom = Math.max(0.1, Math.min(10, pinchZoom0 * getDist(e.touches) / pinchDist0));
-      applyTransform();
-    } else if (e.touches.length === 1 && panActive) {
-      const dx = e.touches[0].clientX - lastPan.x;
-      const dy = e.touches[0].clientY - lastPan.y;
-      position.x += dx; position.y += dy;
-      lastPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      applyTransform();
-    }
-  }, { passive: false });
-
-  appEl.addEventListener('touchend', e => {
-    if (e.touches.length < 2) { pinchActive = false; pinchDist0 = 0; }
-    if (e.touches.length === 0) panActive = false;
-  }, { passive: true });
-
-  function getDist(t) {
-    const dx = t[1].clientX-t[0].clientX, dy = t[1].clientY-t[0].clientY;
-    return Math.sqrt(dx*dx + dy*dy);
-  }
-
-  // ──────────────────────────────────────────
-  // ── Level tool ──
-  // gamma = left/right tilt (−90 … +90)
-  // beta  = front/back tilt (−180 … +180)
-  // ──────────────────────────────────────────
-  function updateAxis(num, bar, bub, deg) {
-    const clamped = Math.max(-45, Math.min(45, deg));
-    const pct = 50 + (clamped / 45) * 40;
-    bub.style.left = pct + '%';
-    const isOk = Math.abs(deg) <= LEVEL_THRESHOLD;
-    num.textContent = (deg >= 0 ? '+' : '') + deg.toFixed(1) + '°';
-    num.classList.toggle('ok', isOk);
-    bar.classList.toggle('ok', isOk);
-  }
-
-  function onOrientation(e) {
-    const g = e.gamma || 0;
-    const b = e.beta  || 0;
-    updateAxis(lvlNumG, lvlBarG, lvlBubG, g);
-    updateAxis(lvlNumB, lvlBarB, lvlBubB, b);
-  }
-
-  function activateLevel() {
-    if (levelActive) return;
-    levelActive = true;
-    levelBtn.classList.add('hidden');
-    lvlRowB.style.display = 'flex';
-    lvlSepB.style.display = 'block';
-    // Seed display before first event
-    lvlNumG.textContent = '+0.0°';
-    lvlNumB.textContent = '+0.0°';
-    window.addEventListener('deviceorientation', onOrientation, true);
-  }
-
-  window.requestLevel = async function() {
-    if (typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function') {
-      // iOS 13+ requires user gesture to request permission
-      try {
-        const perm = await DeviceOrientationEvent.requestPermission();
-        if (perm === 'granted') activateLevel();
-        else { levelBtn.textContent = 'negado'; levelBtn.style.opacity = '0.4'; }
-      } catch(err) {
-        levelBtn.textContent = 'erro';
+  // Standard 9-param homography solve
+  function solveSystem(A, b) {
+    // 8×8 gaussian elimination
+    const n = 8;
+    const M = A.map((row,i) => [...row, b[i]]);
+    for (let col = 0; col < n; col++) {
+      let maxRow = col;
+      for (let row = col+1; row < n; row++)
+        if (Math.abs(M[row][col]) > Math.abs(M[maxRow][col])) maxRow = row;
+      [M[col], M[maxRow]] = [M[maxRow], M[col]];
+      for (let row = col+1; row < n; row++) {
+        const f = M[row][col] / M[col][col];
+        for (let j = col; j <= n; j++) M[row][j] -= f * M[col][j];
       }
-    } else {
-      // Android / older Safari — no permission required
-      activateLevel();
     }
-  };
-
-  // Auto-start on Android (no permission gate)
-  if (typeof DeviceOrientationEvent !== 'undefined' &&
-      typeof DeviceOrientationEvent.requestPermission !== 'function') {
-    activateLevel();
+    const x = new Array(n).fill(0);
+    for (let i = n-1; i >= 0; i--) {
+      x[i] = M[i][n] / M[i][i];
+      for (let j = i-1; j >= 0; j--) M[j][n] -= M[j][i] * x[i];
+    }
+    return x;
   }
 
-  // ── Boot ──
+  // Source points: unit square corners
+  const srcPts = [[0,0],[1,0],[1,1],[0,1]];
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [sx, sy] = srcPts[i];
+    const [dx, dy] = dst[i];
+    A.push([sx, sy, 1, 0, 0, 0, -dx*sx, -dx*sy]);
+    b.push(dx);
+    A.push([0, 0, 0, sx, sy, 1, -dy*sx, -dy*sy]);
+    b.push(dy);
+  }
+  const h = solveSystem(A, b);
+  const H = [
+    [h[0], h[1], h[2]],
+    [h[3], h[4], h[5]],
+    [h[6], h[7], 1   ],
+  ];
+
+  // CSS matrix3d maps from the element's natural space (0..w, 0..h) → screen
+  // We need to scale by 1/w, 1/h since H was computed on unit square
+  const iw = state.imgNatW * state.scaleImg;
+  const ih = state.imgNatH * state.scaleImg;
+  // Scale H columns for image dimensions
+  // H' = H * S where S scales x by 1/iw, y by 1/ih
+  // Then convert to 4×4 column-major CSS matrix3d
+  const a = H[0][0]/iw, b_ = H[0][1]/ih, c_ = H[0][2];
+  const d = H[1][0]/iw, e_ = H[1][1]/ih, f_ = H[1][2];
+  const g = H[2][0]/iw, k  = H[2][1]/ih, l  = H[2][2];
+
+  // CSS matrix3d is column-major, perspective in row 3
+  // Mapping: [x,y,1] (homogeneous) → [x',y',w']
+  // matrix3d(a,d,0,g, b,e,0,k, 0,0,1,0, c,f,0,l)
+  // col1=[a,d,0,g], col2=[b,e,0,k], col3=[0,0,1,0], col4=[c,f,0,l]
+  return `matrix3d(${a},${d},0,${g}, ${b_},${e_},0,${k}, 0,0,1,0, ${c_},${f_},0,${l})`;
+}
+
+function applyPerspective() {
+  if (!state.perspOn || !state.imgLoaded) return;
+  const dst = state.perspHandles;
+  refImg.style.transformOrigin = '0 0';
+  refImg.style.width  = state.imgNatW + 'px';
+  refImg.style.height = state.imgNatH + 'px';
+  const mat = computeMatrix3d(dst);
+  const mirrorX = state.mirrored ? -1 : 1;
+  // Apply scale + mirror then perspective matrix on top
+  const s = state.scaleImg;
+  // We bake base scale into the dst computation, so img is rendered at 1:1 then warped
+  // Actually: we want the img element at its natural size, then apply a matrix that maps it to dst corners
+  // So: transform = matrix3d(H mapping [0..natW, 0..natH] → dst corners)
+  refImg.style.transform = mat;
+  refImg.style.opacity = state.opacity;
+}
+
+// ── Handle dragging ───────────────────────────────────────────────────────
+let activeHandle = null;
+let handleStart = {hx:0, hy:0, tx:0, ty:0};
+
+handles.forEach((h, idx) => {
+  h.addEventListener('touchstart', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    const t = e.touches[0];
+    activeHandle = idx;
+    handleStart = {
+      hx: state.perspHandles[idx][0],
+      hy: state.perspHandles[idx][1],
+      tx: t.clientX, ty: t.clientY,
+    };
+  }, {passive:false});
+});
+
+document.addEventListener('touchmove', e => {
+  if (activeHandle === null) return;
+  if (!state.perspOn) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  const dx = t.clientX - handleStart.tx;
+  const dy = t.clientY - handleStart.ty;
+  state.perspHandles[activeHandle] = [
+    handleStart.hx + dx,
+    handleStart.hy + dy,
+  ];
+  positionHandles();
+  applyPerspective();
+}, {passive:false});
+
+document.addEventListener('touchend', e => {
+  if (activeHandle !== null) {
+    activeHandle = null;
+    e.stopPropagation();
+  }
+});
+
+// ── Pan / Pinch ───────────────────────────────────────────────────────────
+let panState = null;
+let pinchState = null;
+
+function touchDist(t1, t2) {
+  const dx = t2.clientX - t1.clientX;
+  const dy = t2.clientY - t1.clientY;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+function touchMid(t1, t2) {
+  return [(t1.clientX+t2.clientX)/2, (t1.clientY+t2.clientY)/2];
+}
+
+refLayer.addEventListener('touchstart', e => {
+  if (state.perspOn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    panState = {
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      origX: state.panX,
+      origY: state.panY,
+    };
+    pinchState = null;
+  } else if (e.touches.length === 2) {
+    panState = null;
+    pinchState = {
+      dist: touchDist(e.touches[0], e.touches[1]),
+      mid:  touchMid(e.touches[0],  e.touches[1]),
+      origScale: state.scaleImg,
+      origX: state.panX,
+      origY: state.panY,
+    };
+  }
+}, {passive:false});
+
+refLayer.addEventListener('touchmove', e => {
+  if (state.perspOn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  if (e.touches.length === 1 && panState) {
+    const dx = e.touches[0].clientX - panState.startX;
+    const dy = e.touches[0].clientY - panState.startY;
+    state.panX = panState.origX + dx;
+    state.panY = panState.origY + dy;
+    applyImageTransform();
+  } else if (e.touches.length === 2 && pinchState) {
+    const newDist = touchDist(e.touches[0], e.touches[1]);
+    const ratio = newDist / pinchState.dist;
+    const newScale = Math.min(8, Math.max(0.1, pinchState.origScale * ratio));
+    const mid = touchMid(e.touches[0], e.touches[1]);
+    // Scale around pinch midpoint
+    const relX = mid[0] - pinchState.origX;
+    const relY = mid[1] - pinchState.origY;
+    state.panX = mid[0] - relX * (newScale / pinchState.origScale);
+    state.panY = mid[1] - relY * (newScale / pinchState.origScale);
+    state.scaleImg = newScale;
+    applyImageTransform();
+  }
+}, {passive:false});
+
+refLayer.addEventListener('touchend', e => {
+  if (state.perspOn) return;
+  e.stopPropagation();
+  if (e.touches.length < 1) panState = null;
+  if (e.touches.length < 2) pinchState = null;
+}, {passive:false});
+
+// ── Toggle UI visibility on tap ───────────────────────────────────────────
+camCanvas.addEventListener('touchend', e => {
+  if (state.perspOn) return;
+  // Only if quick tap (no move)
+  state.uiVisible = !state.uiVisible;
+  appEl.classList.toggle('ui-hidden', !state.uiVisible);
+});
+
+// ── Bottom bar & sliders stop propagation ─────────────────────────────────
+document.getElementById('bottom-bar').addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
+document.getElementById('bottom-bar').addEventListener('touchend',   e => e.stopPropagation(), {passive:false});
+document.getElementById('bottom-bar').addEventListener('click',      e => e.stopPropagation());
+
+document.getElementById('top-bar').addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
+document.getElementById('top-bar').addEventListener('touchend',   e => e.stopPropagation(), {passive:false});
+
+document.getElementById('slider-left').addEventListener('touchstart',  e => e.stopPropagation(), {passive:false});
+document.getElementById('slider-right').addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
+
+// ── Retry camera ──────────────────────────────────────────────────────────
+document.getElementById('btn-retry-cam').addEventListener('click', e => {
+  e.stopPropagation();
+  noCam.style.display = 'none';
   startCamera();
+});
+
+// ── Resize ────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (state.gridOn) drawGrid();
+  if (state.imgLoaded && !state.perspOn) applyImageTransform();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+startCamera();
+
+// Service Worker
+if ('serviceWorker' in navigator) {
+  const swCode = `
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => clients.claim());
+self.addEventListener('fetch', e => {
+  e.respondWith(caches.open('trace-easy-v1').then(c =>
+    c.match(e.request).then(r => r || fetch(e.request).then(res => {
+      c.put(e.request, res.clone()); return res;
+    }).catch(() => r))
+  ));
+});
+`;
+  const swBlob = new Blob([swCode], {type:'application/javascript'});
+  const swUrl  = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
 
 })();
 </script>
