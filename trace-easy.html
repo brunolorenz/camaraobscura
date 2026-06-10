@@ -522,17 +522,15 @@
   // ── Perspective math ──
   function applyPerspTransform() {
     const cw = window.innerWidth, ch = window.innerHeight;
-    const W = imgEl.naturalWidth  || cw;
-    const H = imgEl.naturalHeight || ch;
-    const scale = Math.min(cw/W, ch/H) * imgZoom;
+    const W = imgEl.naturalWidth, H = imgEl.naturalHeight;
+    const scale = Math.min(cw / W, ch / H);
     const rw = W * scale, rh = H * scale;
-    const ox = (cw - rw) / 2 + position.x;
-    const oy = (ch - rh) / 2 + position.y;
+    const ox = (cw - rw) / 2;
+    const oy = (ch - rh) / 2;
 
-    // Source corners in local image space (origin = top-left of rendered image)
+    // Source: the 4 corners of the image as rendered (no pan/zoom applied)
     const src = [[0,0],[rw,0],[rw,rh],[0,rh]];
-
-    // Destination corners in same local space
+    // Destination: corners in local image space
     const dstL = corners.map(c => [c.x - ox, c.y - oy]);
 
     const m = computeHomography(src, dstL);
@@ -585,24 +583,20 @@
 
   // ── Init corners from current rendered image rect ──
   function initCorners() {
-    // Reset transform so getBoundingClientRect reflects the true rendered rect
-    imgEl.style.transformOrigin = 'center center';
-    const sx = flipped ? -imgZoom : imgZoom;
-    imgEl.style.transform =
-      `translate(${position.x}px,${position.y}px) rotate(${rotation}deg) scale(${sx},${imgZoom})`;
-
-    // Use rAF to ensure layout is flushed before reading rect
-    requestAnimationFrame(() => {
-      const r = imgEl.getBoundingClientRect();
-      corners = [
-        {x: r.left,  y: r.top},
-        {x: r.right, y: r.top},
-        {x: r.right, y: r.bottom},
-        {x: r.left,  y: r.bottom},
-      ];
-      syncHandles();
-      applyTransform();
-    });
+    const cw = window.innerWidth, ch = window.innerHeight;
+    const W = imgEl.naturalWidth, H = imgEl.naturalHeight;
+    // object-fit:contain scale
+    const scale = Math.min(cw / W, ch / H);
+    const rw = W * scale, rh = H * scale;
+    const ox = (cw - rw) / 2;
+    const oy = (ch - rh) / 2;
+    corners = [
+      {x: ox,      y: oy},
+      {x: ox + rw, y: oy},
+      {x: ox + rw, y: oy + rh},
+      {x: ox,      y: oy + rh},
+    ];
+    syncHandles();
   }
 
   function syncHandles() {
@@ -654,16 +648,12 @@
     btnPersp.classList.toggle('persp-active', perspMode);
     perspLayer.classList.toggle('active', perspMode);
     if (perspMode) {
-      // reset to neutral perspective based on current pan/zoom/rotate state
-      // first apply normal transform so image is positioned, then init corners
-      const sx = flipped ? -imgZoom : imgZoom;
-      imgEl.style.transformOrigin = 'center center';
-      imgEl.style.transform =
-        `translate(${position.x}px,${position.y}px) rotate(${rotation}deg) scale(${sx},${imgZoom})`;
+      // Reset pan/zoom/rotate so initCorners base matches what's on screen
+      position = {x:0, y:0}; rotation = 0; imgZoom = 1; flipped = false;
+      btnFlip.classList.remove('active');
       initCorners();
       applyTransform();
     } else {
-      // restore normal transform
       imgEl.style.transformOrigin = 'center center';
       const sx = flipped ? -imgZoom : imgZoom;
       imgEl.style.transform =
@@ -733,13 +723,15 @@
   // FIX: only activate pan/pinch if the first touch did NOT land on a UI element.
   appEl.addEventListener('touchstart', e => {
     if (!hasImage) return;
-    if (perspMode) return; // handles take over in perspective mode
+    if (perspMode) return;
 
-    // Check every new touch point — if any landed on UI, abort
+    // Block pan/pinch if any touch landed on a UI element
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
       const el = document.elementFromPoint(t.clientX, t.clientY);
-      if (el && isUI(el)) { panActive = false; pinchActive = false; return; }
+      if (el && el.closest('#level-wrap, .slider-track, #bottom-bar, #tip, #empty-state, #camera-error, #upload-btn-empty, .p-handle')) {
+        panActive = false; pinchActive = false; return;
+      }
     }
 
     if (e.touches.length >= 2) {
