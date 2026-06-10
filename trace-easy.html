@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Trace Easy" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#000000" />
+  <title>Trace Easy</title>
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23111'/%3E%3Ccircle cx='90' cy='90' r='50' fill='none' stroke='%23e8d5b7' stroke-width='6'/%3E%3Ccircle cx='90' cy='90' r='10' fill='%23e8d5b7'/%3E%3C/svg%3E" />
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&display=swap');
+
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+
+    :root {
+      --cream: #e8d5b7;
+      --ink: #1a1510;
+      --amber: #c8860a;
+      --green: #4caf74;
+      --ui-bg: rgba(20, 15, 10, 0.75);
+      --blur: blur(14px);
+    }
+
+    html, body { width:100%; height:100%; overflow:hidden; background:#000; font-family:'DM Mono',monospace; }
+
+    #app { position:fixed; inset:0; }
+
+    /* ── Layers ── */
+    #camera-canvas, #grid-canvas {
+      position:absolute; inset:0; width:100%; height:100%; display:block;
+    }
+    #grid-canvas { pointer-events:none; display:none; }
+    #grid-canvas.show { display:block; }
+
+    #trace-image {
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      pointer-events:none; overflow:hidden;
+    }
+    #trace-image img {
+      max-width:100%; max-height:100%; object-fit:contain;
+      pointer-events:none; transform-origin:center center;
+      will-change:transform,opacity;
+    }
+
+    /* ── Camera error ── */
+    #camera-error {
+      position:absolute; inset:0; display:none;
+      align-items:center; justify-content:center;
+      background:#0a0805; color:var(--cream);
+      text-align:center; padding:2rem;
+      font-size:0.85rem; line-height:1.8;
+    }
+    #camera-error.show { display:flex; }
+
+    /* ── Empty state ── */
+    #empty-state {
+      position:absolute; inset:0; display:none;
+      flex-direction:column; align-items:center; justify-content:center;
+      gap:1.5rem; padding:2rem;
+    }
+    #empty-state.show { display:flex; }
+    #empty-state h1 {
+      font-family:'Instrument Serif',serif; font-style:italic;
+      font-size:2.2rem; color:var(--cream); letter-spacing:-0.01em;
+    }
+    #empty-state p {
+      font-size:0.78rem; color:rgba(232,213,183,0.6);
+      text-align:center; max-width:220px; line-height:1.7; letter-spacing:0.03em;
+    }
+    #upload-btn-empty {
+      width:64px; height:64px; border-radius:50%;
+      border:1.5px solid rgba(232,213,183,0.35);
+      background:rgba(232,213,183,0.08); color:var(--cream);
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; transition:all 0.2s ease; backdrop-filter:var(--blur);
+    }
+    #upload-btn-empty:active { transform:scale(0.92); background:rgba(232,213,183,0.16); }
+
+    /* ── Tip ── */
+    #tip {
+      position:absolute;
+      top:max(20px, env(safe-area-inset-top, 20px));
+      left:50%; transform:translateX(-50%);
+      background:var(--ui-bg); backdrop-filter:var(--blur);
+      color:var(--cream); font-size:0.7rem; letter-spacing:0.08em;
+      text-transform:uppercase; padding:8px 18px; border-radius:100px;
+      border:1px solid rgba(232,213,183,0.15); white-space:nowrap;
+      opacity:0; pointer-events:none; transition:opacity 0.4s ease;
+      z-index:50;
+    }
+    #tip.show { opacity:1; pointer-events:auto; }
+
+    /* ── Controls wrapper ── */
+    #controls {
+      position:absolute; inset:0; pointer-events:none;
+      opacity:0; transition:opacity 0.35s ease;
+    }
+    #controls.show { opacity:1; pointer-events:auto; }
+
+    /* ── Vertical slider tracks ── */
+    .slider-track {
+      position:absolute; top:50%; transform:translateY(-50%);
+      display:flex; flex-direction:column; align-items:center; gap:10px;
+      padding:14px 10px;
+      background:var(--ui-bg); backdrop-filter:var(--blur);
+      border-radius:24px; border:1px solid rgba(232,213,183,0.12);
+      touch-action: none;  /* block browser scroll/pan on this element */
+    }
+    #opacity-track { left:12px; }
+    #zoom-track    { right:12px; }
+
+    .slider-label { font-size:0.6rem; letter-spacing:0.1em; text-transform:uppercase; color:rgba(232,213,183,0.5); }
+    .slider-value  { font-size:0.65rem; color:var(--cream); letter-spacing:0.04em; min-width:28px; text-align:center; }
+
+    .v-slider {
+      -webkit-appearance:none; appearance:none;
+      writing-mode:vertical-lr; direction:rtl;
+      width:4px; height:140px;
+      background:rgba(232,213,183,0.2); border-radius:4px; outline:none; cursor:pointer;
+      touch-action: none;
+    }
+    .v-slider::-webkit-slider-thumb {
+      -webkit-appearance:none; appearance:none;
+      width:24px; height:24px; border-radius:50%;
+      background:var(--cream); border:2px solid var(--ink);
+      box-shadow:0 2px 8px rgba(0,0,0,0.5); cursor:pointer;
+    }
+
+    /* ── Bottom bar ── */
+    #bottom-bar {
+      position:absolute;
+      bottom:max(24px, env(safe-area-inset-bottom, 24px));
+      left:50%; transform:translateX(-50%);
+      display:flex; gap:14px; align-items:center;
+    }
+    .btn-round {
+      width:56px; height:56px; border-radius:50%;
+      border:1.5px solid rgba(232,213,183,0.25);
+      background:var(--ui-bg); backdrop-filter:var(--blur);
+      color:var(--cream);
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; transition:all 0.18s ease;
+    }
+    .btn-round:active { transform:scale(0.9); background:rgba(232,213,183,0.18); }
+    .btn-round.active { border-color:var(--amber); background:rgba(200,134,10,0.22); }
+    .btn-round.hidden-btn { display:none; }
+    .icon { pointer-events:none; }
+
+    /* ────────────────────────────────
+       ── Level tool ──
+       Top-right, always visible, always interactive
+    ──────────────────────────────── */
+    #level-wrap {
+      position:absolute;
+      top:max(14px, env(safe-area-inset-top, 14px));
+      right:14px;
+      z-index:60;
+      pointer-events:auto;
+    }
+
+    /* Card */
+    #level-card {
+      background:var(--ui-bg); backdrop-filter:var(--blur);
+      border:1px solid rgba(232,213,183,0.13); border-radius:14px;
+      padding:10px 12px;
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+      min-width:76px;
+    }
+
+    /* Each axis row */
+    .lvl-row { display:flex; flex-direction:column; align-items:center; gap:3px; width:100%; }
+    .lvl-axis {
+      font-size:0.5rem; letter-spacing:0.14em; text-transform:uppercase;
+      color:rgba(232,213,183,0.35);
+    }
+    /* Big number */
+    .lvl-num {
+      font-size:1.15rem; font-weight:500; letter-spacing:-0.03em;
+      color:var(--cream); line-height:1; min-width:56px; text-align:center;
+      transition:color 0.22s ease;
+    }
+    .lvl-num.ok { color:var(--green); }
+
+    /* Mini bar + bubble */
+    .lvl-bar {
+      width:52px; height:4px; border-radius:4px;
+      background:rgba(232,213,183,0.1); position:relative;
+    }
+    /* center tick */
+    .lvl-bar::after {
+      content:''; position:absolute; left:50%; top:0;
+      transform:translateX(-50%);
+      width:1px; height:100%; background:rgba(232,213,183,0.18);
+    }
+    .lvl-bubble {
+      position:absolute; top:50%; transform:translate(-50%,-50%);
+      width:7px; height:7px; border-radius:50%;
+      background:rgba(232,213,183,0.6);
+      transition:left 0.07s linear, background 0.22s ease, box-shadow 0.22s ease;
+    }
+    .lvl-bar.ok .lvl-bubble { background:var(--green); box-shadow:0 0 4px var(--green); }
+
+    /* divider */
+    .lvl-sep { width:100%; height:1px; background:rgba(232,213,183,0.07); }
+
+    /* beta row hidden until permission */
+    #lvl-row-beta { display:none; }
+    #lvl-sep-beta { display:none; }
+
+    /* Permission button */
+    #level-btn {
+      font-size:0.54rem; letter-spacing:0.1em; text-transform:uppercase;
+      color:rgba(232,213,183,0.4);
+      background:var(--ui-bg); backdrop-filter:var(--blur);
+      border:1px solid rgba(232,213,183,0.1); border-radius:100px;
+      padding:4px 10px; cursor:pointer; white-space:nowrap;
+      margin-top:2px;
+      transition:opacity 0.2s;
+    }
+    #level-btn:active { opacity:0.6; }
+    #level-btn.hidden { display:none; }
+
+    /* ── Perspective handles ── */
+    #persp-layer {
+      position:absolute; inset:0; display:none; pointer-events:none; z-index:30;
+    }
+    #persp-layer.active { display:block; pointer-events:auto; }
+
+    .p-handle {
+      position:absolute; width:36px; height:36px;
+      transform:translate(-50%,-50%);
+      border-radius:50%;
+      border:2px solid var(--amber);
+      background:rgba(200,134,10,0.25);
+      backdrop-filter:var(--blur);
+      touch-action:none; cursor:grab;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .p-handle::after {
+      content:''; width:8px; height:8px;
+      border-radius:50%; background:var(--amber);
+    }
+    .p-handle:active { cursor:grabbing; background:rgba(200,134,10,0.5); }
+
+    /* Perspective button */
+    .btn-round.persp-active { border-color:var(--amber); background:rgba(200,134,10,0.22); }
+  </style>
+</head>
+
+<body>
+<div id="app">
+
+  <canvas id="camera-canvas"></canvas>
+  <canvas id="grid-canvas"></canvas>
+
+  <div id="trace-image"><img id="img-el" src="" alt="" style="display:none" /></div>
+
+  <div id="camera-error">
+    <div>
+      <div style="font-size:2rem;margin-bottom:1rem">📷</div>
+      Câmera não pôde ser acessada.<br/>
+      Verifique: <em>Ajustes → Safari → Câmera → Permitir</em>
+      <div style="margin-top:1rem;opacity:0.5;font-size:0.7rem">Este app requer HTTPS.</div>
+    </div>
+  </div>
+
+  <div id="empty-state" class="show">
+    <h1>Trace Easy</h1>
+    <p>Carregue uma imagem para usar como guia de decalque transparente.</p>
+    <div id="upload-btn-empty" onclick="triggerUpload()">
+      <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Level — always on top, outside #controls -->
+  <div id="level-wrap" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()">
+    <div id="level-card">
+      <!-- Gamma: left/right -->
+      <div class="lvl-row" id="lvl-row-gamma">
+        <span class="lvl-axis">lat</span>
+        <span class="lvl-num" id="lvl-num-gamma">—</span>
+        <div class="lvl-bar" id="lvl-bar-gamma">
+          <div class="lvl-bubble" id="lvl-bub-gamma" style="left:50%"></div>
+        </div>
+      </div>
+      <div class="lvl-sep" id="lvl-sep-beta"></div>
+      <!-- Beta: front/back — hidden until permission -->
+      <div class="lvl-row" id="lvl-row-beta">
+        <span class="lvl-axis">long</span>
+        <span class="lvl-num" id="lvl-num-beta">—</span>
+        <div class="lvl-bar" id="lvl-bar-beta">
+          <div class="lvl-bubble" id="lvl-bub-beta" style="left:50%"></div>
+        </div>
+      </div>
+    </div>
+    <div id="level-btn" onclick="requestLevel()">nivelar</div>
+  </div>
+
+  <!-- Tip -->
+  <div id="tip" onclick="hideTip()">Toque para ocultar controles</div>
+
+  <!-- Controls (toggle on tap) -->
+  <div id="controls" class="show">
+
+    <div class="slider-track" id="opacity-track"
+         ontouchstart="event.stopPropagation()" ontouchmove="event.stopPropagation()"
+         onclick="event.stopPropagation()">
+      <span class="slider-label">opac</span>
+      <input class="v-slider" type="range" id="opacity-slider"
+        min="0" max="1" step="0.01" value="0.5"
+        oninput="setOpacity(this.value)" />
+      <span class="slider-value" id="opacity-val">50%</span>
+    </div>
+
+    <div class="slider-track" id="zoom-track" style="display:none"
+         ontouchstart="event.stopPropagation()" ontouchmove="event.stopPropagation()"
+         onclick="event.stopPropagation()">
+      <span class="slider-label">zoom</span>
+      <input class="v-slider" type="range" id="czoom-slider"
+        min="1" max="2.5" step="0.1" value="1"
+        oninput="setCameraZoom(this.value)" />
+      <span class="slider-value" id="czoom-val">1×</span>
+    </div>
+
+    <div id="bottom-bar"
+         ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()">
+      <div class="btn-round" onclick="triggerUpload()">
+        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+        </svg>
+      </div>
+      <div class="btn-round hidden-btn" id="btn-rotate" onclick="rotateImage()">
+        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </div>
+      <div class="btn-round hidden-btn" id="btn-grid" onclick="toggleGrid()">
+        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+      </div>
+      <div class="btn-round hidden-btn" id="btn-flip" onclick="flipImage()">
+        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+      </div>
+      <div class="btn-round hidden-btn" id="btn-persp" onclick="togglePersp()">
+        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="2 19 7 5 17 5 22 19"/>
+          <line x1="2" y1="19" x2="22" y2="19"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Perspective handles layer -->
+  <div id="persp-layer">
+    <div class="p-handle" id="ph-tl" data-i="0"></div>
+    <div class="p-handle" id="ph-tr" data-i="1"></div>
+    <div class="p-handle" id="ph-br" data-i="2"></div>
+    <div class="p-handle" id="ph-bl" data-i="3"></div>
+  </div>
+
+  <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(this)" />
+</div>
+
+<script>
+(function() {
+  // ── State ──
+  let opacity  = 0.5, rotation = 0, flipped = false;
+  let imgZoom  = 1,   camZoom  = 1;
+  let position = { x:0, y:0 };
+  let showGrid = false, controlsVisible = true, hasImage = false;
+
+  // Perspective
+  let perspMode = false;
+  // corners: [tl, tr, br, bl] as {x, y} relative to viewport (px)
+  let corners = null;
+
+  // Touch tracking — pan only fires if touch originated on bare canvas
+  let panActive  = false;
+  let pinchActive= false;
+  let pinchDist0 = 0, pinchZoom0 = 1;
+  let lastPan    = { x:0, y:0 };
+
+  // Camera
+  let videoEl = null, videoTrack = null, rafId = null;
+
+  // Level
+  let levelActive = false;
+  const LEVEL_THRESHOLD = 2.0; // degrees
+
+  // Elements
+  const camCanvas   = document.getElementById('camera-canvas');
+  const gridCanvas  = document.getElementById('grid-canvas');
+  const imgEl       = document.getElementById('img-el');
+  const controls    = document.getElementById('controls');
+  const emptyState  = document.getElementById('empty-state');
+  const cameraErr   = document.getElementById('camera-error');
+  const tip         = document.getElementById('tip');
+  const czSlider    = document.getElementById('czoom-slider');
+  const czVal       = document.getElementById('czoom-val');
+  const opVal       = document.getElementById('opacity-val');
+  const zoomTrack   = document.getElementById('zoom-track');
+  const btnRotate   = document.getElementById('btn-rotate');
+  const btnGrid     = document.getElementById('btn-grid');
+  const btnFlip     = document.getElementById('btn-flip');
+  const btnPersp    = document.getElementById('btn-persp');
+  const perspLayer  = document.getElementById('persp-layer');
+  const pHandles    = [
+    document.getElementById('ph-tl'),
+    document.getElementById('ph-tr'),
+    document.getElementById('ph-br'),
+    document.getElementById('ph-bl'),
+  ];
+  const appEl       = document.getElementById('app');
+  // Level elements (new card design)
+  const lvlNumG  = document.getElementById('lvl-num-gamma');
+  const lvlBarG  = document.getElementById('lvl-bar-gamma');
+  const lvlBubG  = document.getElementById('lvl-bub-gamma');
+  const lvlNumB  = document.getElementById('lvl-num-beta');
+  const lvlBarB  = document.getElementById('lvl-bar-beta');
+  const lvlBubB  = document.getElementById('lvl-bub-beta');
+  const lvlRowB  = document.getElementById('lvl-row-beta');
+  const lvlSepB  = document.getElementById('lvl-sep-beta');
+  const levelBtn = document.getElementById('level-btn');
+
+  // Returns true if el is inside a UI control (slider, button bar, level widget, etc.)
+  function isUI(el) {
+    return !!el.closest('.slider-track, #bottom-bar, #level-wrap, #tip, #empty-state, #camera-error, #upload-btn-empty, .p-handle');
+  }
+
+  // ── Camera ──
+  async function startCamera() {
+    videoEl = document.createElement('video');
+    videoEl.autoplay = true; videoEl.playsInline = true;
+    videoEl.muted = true; videoEl.setAttribute('playsinline','');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 } },
+        audio:false
+      });
+      const track = stream.getVideoTracks()[0];
+      videoTrack = track;
+      // Zoom always 1.0–2.5× (hardware native zoom used if available, canvas fallback otherwise)
+      czSlider.min = 1; czSlider.max = 2.5; czSlider.step = 0.1; czSlider.value = 1;
+      camZoom = 1;
+      videoEl.srcObject = stream;
+      await videoEl.play();
+      startDrawLoop();
+    } catch(e) {
+      camCanvas.style.display = 'none';
+      cameraErr.classList.add('show');
+    }
+  }
+
+  function startDrawLoop() {
+    const ctx = camCanvas.getContext('2d');
+    function draw() {
+      if (!videoEl || videoEl.readyState < videoEl.HAVE_ENOUGH_DATA) {
+        rafId = requestAnimationFrame(draw); return;
+      }
+      const W = window.innerWidth, H = window.innerHeight;
+      if (camCanvas.width !== W || camCanvas.height !== H) {
+        camCanvas.width = W; camCanvas.height = H;
+        gridCanvas.width = W; gridCanvas.height = H;
+      }
+      ctx.clearRect(0,0,W,H);
+      const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+      if (!vw || !vh) { rafId = requestAnimationFrame(draw); return; }
+      const vr = vw/vh, cr = W/H;
+      let sx=0, sy=0, sw=vw, sh=vh;
+      if (vr > cr) { sw = vh*cr; sx = (vw-sw)/2; }
+      else          { sh = vw/cr; sy = (vh-sh)/2; }
+      if (camZoom > 1) {
+        const zf=1/camZoom, nw=sw*zf, nh=sh*zf;
+        sx += (sw-nw)/2; sy += (sh-nh)/2; sw=nw; sh=nh;
+      }
+      ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, W, H);
+      if (showGrid) {
+        const gc = gridCanvas.getContext('2d');
+        gc.clearRect(0,0,W,H);
+        gc.strokeStyle = 'rgba(232,213,183,0.28)'; gc.lineWidth = 1;
+        const sp = Math.min(W,H)/6;
+        for(let x=sp; x<W; x+=sp){ gc.beginPath(); gc.moveTo(x,0); gc.lineTo(x,H); gc.stroke(); }
+        for(let y=sp; y<H; y+=sp){ gc.beginPath(); gc.moveTo(0,y); gc.lineTo(W,y); gc.stroke(); }
+      }
+      rafId = requestAnimationFrame(draw);
+    }
+    rafId = requestAnimationFrame(draw);
+  }
+
+  // ── Transform ──
+  function applyTransform() {
+    if (perspMode && corners) {
+      applyPerspTransform();
+    } else {
+      const sx = flipped ? -imgZoom : imgZoom;
+      imgEl.style.transform =
+        `translate(${position.x}px,${position.y}px) rotate(${rotation}deg) scale(${sx},${imgZoom})`;
+    }
+    imgEl.style.opacity = opacity;
+  }
+
+  // ── Perspective math ──
+  // Computes CSS matrix3d from 4 destination corners using the standard
+  // 4-point perspective homography (browser-native, no library needed).
+  function applyPerspTransform() {
+    const W = imgEl.naturalWidth  || imgEl.offsetWidth  || window.innerWidth;
+    const H = imgEl.naturalHeight || imgEl.offsetHeight || window.innerHeight;
+
+    // Rendered size of the img element (object-fit:contain)
+    const cw = window.innerWidth, ch = window.innerHeight;
+    const scale = Math.min(cw/W, ch/H);
+    const rw = W*scale, rh = H*scale;
+    const ox = (cw-rw)/2, oy = (ch-rh)/2; // top-left of rendered image
+
+    // Source corners (rendered image space, before transform)
+    const src = [[0,0],[rw,0],[rw,rh],[0,rh]];
+
+    // Destination corners (viewport absolute px)
+    const dst = corners.map(c => [c.x, c.y]);
+
+    // Translate dst to image-element local space
+    const dstL = dst.map(([x,y]) => [x - ox, y - oy]);
+
+    const m = computeHomography(src, dstL);
+    if (!m) return;
+
+    // CSS matrix3d is column-major 4x4
+    imgEl.style.transformOrigin = '0 0';
+    imgEl.style.transform = `translate(${ox}px,${oy}px) matrix3d(
+      ${m[0]},${m[3]},0,${m[6]},
+      ${m[1]},${m[4]},0,${m[7]},
+      0,0,1,0,
+      ${m[2]},${m[5]},0,${m[8]}
+    )`;
+  }
+
+  // Solve 8-DOF homography (src[4], dst[4] each [[x,y]…])
+  // Returns flat 3×3 row-major [h00,h01,h02, h10,h11,h12, h20,h21,h22] with h22=1
+  function computeHomography(src, dst) {
+    const A = [], b = [];
+    for (let i = 0; i < 4; i++) {
+      const [sx,sy] = src[i], [dx,dy] = dst[i];
+      A.push([sx,sy,1, 0,0,0, -dx*sx,-dx*sy]);
+      A.push([0,0,0, sx,sy,1, -dy*sx,-dy*sy]);
+      b.push(dx); b.push(dy);
+    }
+    const h = gaussSolve(A, b);
+    if (!h) return null;
+    return [...h, 1]; // append h22=1
+  }
+
+  // Gaussian elimination with partial pivoting, 8×8
+  function gaussSolve(A, b) {
+    const n = 8;
+    const M = A.map((row,i) => [...row, b[i]]);
+    for (let col = 0; col < n; col++) {
+      let maxR = col;
+      for (let r = col+1; r < n; r++)
+        if (Math.abs(M[r][col]) > Math.abs(M[maxR][col])) maxR = r;
+      [M[col], M[maxR]] = [M[maxR], M[col]];
+      if (Math.abs(M[col][col]) < 1e-10) return null;
+      const div = M[col][col];
+      for (let j = col; j <= n; j++) M[col][j] /= div;
+      for (let r = 0; r < n; r++) {
+        if (r === col) continue;
+        const f = M[r][col];
+        for (let j = col; j <= n; j++) M[r][j] -= f * M[col][j];
+      }
+    }
+    return M.map(row => row[n]);
+  }
+
+  // ── Init corners from current rendered image rect ──
+  function initCorners() {
+    const cw = window.innerWidth, ch = window.innerHeight;
+    const W = imgEl.naturalWidth  || cw;
+    const H = imgEl.naturalHeight || ch;
+    const scale = Math.min(cw/W, ch/H);
+    const rw = W*scale, rh = H*scale;
+    const ox = (cw-rw)/2, oy = (ch-rh)/2;
+    corners = [
+      {x: ox,    y: oy},
+      {x: ox+rw, y: oy},
+      {x: ox+rw, y: oy+rh},
+      {x: ox,    y: oy+rh},
+    ];
+    syncHandles();
+  }
+
+  function syncHandles() {
+    if (!corners) return;
+    pHandles.forEach((h,i) => {
+      h.style.left = corners[i].x + 'px';
+      h.style.top  = corners[i].y + 'px';
+    });
+  }
+
+  // ── Handle drag ──
+  pHandles.forEach((handle, idx) => {
+    let startX, startY, startCX, startCY;
+
+    function onStart(cx, cy) {
+      startX = cx; startY = cy;
+      startCX = corners[idx].x; startCY = corners[idx].y;
+    }
+    function onMove(cx, cy) {
+      corners[idx].x = startCX + (cx - startX);
+      corners[idx].y = startCY + (cy - startY);
+      syncHandles();
+      applyTransform();
+    }
+
+    handle.addEventListener('touchstart', e => {
+      e.stopPropagation(); e.preventDefault();
+      onStart(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+    handle.addEventListener('touchmove', e => {
+      e.stopPropagation(); e.preventDefault();
+      onMove(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+
+    handle.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      onStart(e.clientX, e.clientY);
+      const mm = ev => onMove(ev.clientX, ev.clientY);
+      const mu = () => { window.removeEventListener('mousemove',mm); window.removeEventListener('mouseup',mu); };
+      window.addEventListener('mousemove', mm);
+      window.addEventListener('mouseup', mu);
+    });
+  });
+
+  // ── Public API ──
+  window.togglePersp = () => {
+    if (!hasImage) return;
+    perspMode = !perspMode;
+    btnPersp.classList.toggle('persp-active', perspMode);
+    perspLayer.classList.toggle('active', perspMode);
+    if (perspMode) {
+      // reset to neutral perspective based on current pan/zoom/rotate state
+      // first apply normal transform so image is positioned, then init corners
+      const sx = flipped ? -imgZoom : imgZoom;
+      imgEl.style.transformOrigin = 'center center';
+      imgEl.style.transform =
+        `translate(${position.x}px,${position.y}px) rotate(${rotation}deg) scale(${sx},${imgZoom})`;
+      initCorners();
+      applyTransform();
+    } else {
+      // restore normal transform
+      imgEl.style.transformOrigin = 'center center';
+      const sx = flipped ? -imgZoom : imgZoom;
+      imgEl.style.transform =
+        `translate(${position.x}px,${position.y}px) rotate(${rotation}deg) scale(${sx},${imgZoom})`;
+    }
+  };
+  window.setOpacity = v => {
+    opacity = parseFloat(v);
+    opVal.textContent = Math.round(opacity*100) + '%';
+    applyTransform();
+  };
+  window.setCameraZoom = v => {
+    camZoom = parseFloat(v);
+    czVal.textContent = camZoom.toFixed(1) + '×';
+    if (videoTrack?.applyConstraints)
+      videoTrack.applyConstraints({ advanced:[{ zoom:camZoom }] }).catch(()=>{});
+  };
+  window.rotateImage = () => { rotation = (rotation+90)%360; applyTransform(); };
+  window.flipImage = () => {
+    flipped = !flipped;
+    btnFlip.classList.toggle('active', flipped);
+    applyTransform();
+  };
+  window.toggleGrid = () => {
+    showGrid = !showGrid;
+    btnGrid.classList.toggle('active', showGrid);
+    gridCanvas.classList.toggle('show', showGrid);
+    if (!showGrid) gridCanvas.getContext('2d').clearRect(0,0,gridCanvas.width,gridCanvas.height);
+  };
+  window.triggerUpload = () => document.getElementById('file-input').click();
+  window.handleFile = input => {
+    const file = input.files[0];
+    if (!file?.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      imgEl.src = e.target.result; imgEl.style.display = '';
+      imgEl.onload = () => {
+        position = {x:0,y:0}; rotation = 0; flipped = false; imgZoom = 1;
+        applyTransform();
+      };
+      hasImage = true;
+      emptyState.classList.remove('show');
+      btnRotate.classList.remove('hidden-btn');
+      btnGrid.classList.remove('hidden-btn');
+      btnFlip.classList.remove('hidden-btn');
+      btnPersp.classList.remove('hidden-btn');
+      zoomTrack.style.display = '';
+      showTip(); showControls();
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  };
+  window.hideTip = () => tip.classList.remove('show');
+
+  function showTip()      { tip.classList.add('show'); setTimeout(()=>tip.classList.remove('show'), 3500); }
+  function showControls() { controls.classList.add('show'); controlsVisible = true; }
+  function hideControls() { controls.classList.remove('show'); controlsVisible = false; tip.classList.remove('show'); }
+
+  // ── Tap to toggle controls ──
+  appEl.addEventListener('click', e => {
+    if (!hasImage || isUI(e.target)) return;
+    controlsVisible ? hideControls() : showControls();
+  });
+
+  // ── Touch: pinch + pan ──
+  // FIX: only activate pan/pinch if the first touch did NOT land on a UI element.
+  appEl.addEventListener('touchstart', e => {
+    if (!hasImage) return;
+    if (perspMode) return; // handles take over in perspective mode
+
+    // Check every new touch point — if any landed on UI, abort
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if (el && isUI(el)) { panActive = false; pinchActive = false; return; }
+    }
+
+    if (e.touches.length >= 2) {
+      panActive  = false;
+      pinchActive = true;
+      pinchDist0 = getDist(e.touches);
+      pinchZoom0 = imgZoom;
+    } else {
+      panActive  = true;
+      pinchActive = false;
+      lastPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  }, { passive: true });
+
+  appEl.addEventListener('touchmove', e => {
+    if (!hasImage) return;
+    if (e.touches.length >= 2 && pinchActive) {
+      e.preventDefault();
+      imgZoom = Math.max(0.1, Math.min(10, pinchZoom0 * getDist(e.touches) / pinchDist0));
+      applyTransform();
+    } else if (e.touches.length === 1 && panActive) {
+      const dx = e.touches[0].clientX - lastPan.x;
+      const dy = e.touches[0].clientY - lastPan.y;
+      position.x += dx; position.y += dy;
+      lastPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      applyTransform();
+    }
+  }, { passive: false });
+
+  appEl.addEventListener('touchend', e => {
+    if (e.touches.length < 2) { pinchActive = false; pinchDist0 = 0; }
+    if (e.touches.length === 0) panActive = false;
+  }, { passive: true });
+
+  function getDist(t) {
+    const dx = t[1].clientX-t[0].clientX, dy = t[1].clientY-t[0].clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  // ──────────────────────────────────────────
+  // ── Level tool ──
+  // gamma = left/right tilt (−90 … +90)
+  // beta  = front/back tilt (−180 … +180)
+  // ──────────────────────────────────────────
+  function updateAxis(num, bar, bub, deg) {
+    const clamped = Math.max(-45, Math.min(45, deg));
+    const pct = 50 + (clamped / 45) * 40;
+    bub.style.left = pct + '%';
+    const isOk = Math.abs(deg) <= LEVEL_THRESHOLD;
+    num.textContent = (deg >= 0 ? '+' : '') + deg.toFixed(1) + '°';
+    num.classList.toggle('ok', isOk);
+    bar.classList.toggle('ok', isOk);
+  }
+
+  function onOrientation(e) {
+    const g = e.gamma || 0;
+    const b = e.beta  || 0;
+    updateAxis(lvlNumG, lvlBarG, lvlBubG, g);
+    updateAxis(lvlNumB, lvlBarB, lvlBubB, b);
+  }
+
+  function activateLevel() {
+    if (levelActive) return;
+    levelActive = true;
+    levelBtn.classList.add('hidden');
+    lvlRowB.style.display = 'flex';
+    lvlSepB.style.display = 'block';
+    // Seed display before first event
+    lvlNumG.textContent = '+0.0°';
+    lvlNumB.textContent = '+0.0°';
+    window.addEventListener('deviceorientation', onOrientation, true);
+  }
+
+  window.requestLevel = async function() {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // iOS 13+ requires user gesture to request permission
+      try {
+        const perm = await DeviceOrientationEvent.requestPermission();
+        if (perm === 'granted') activateLevel();
+        else { levelBtn.textContent = 'negado'; levelBtn.style.opacity = '0.4'; }
+      } catch(err) {
+        levelBtn.textContent = 'erro';
+      }
+    } else {
+      // Android / older Safari — no permission required
+      activateLevel();
+    }
+  };
+
+  // Auto-start on Android (no permission gate)
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission !== 'function') {
+    activateLevel();
+  }
+
+  // ── Boot ──
+  startCamera();
+
+})();
+</script>
+</body>
+</html>
