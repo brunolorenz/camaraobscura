@@ -12,316 +12,141 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
 
-<!-- PWA manifest inline via JS -->
 <script>
 const manifest = {
-  name: "Trace Easy",
-  short_name: "Trace Easy",
-  start_url: ".",
-  display: "fullscreen",
-  background_color: "#000000",
-  theme_color: "#000000",
-  icons: [{
-    src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><circle cx='50' cy='50' r='30' fill='none' stroke='%23c8860a' stroke-width='4'/><line x1='50' y1='20' x2='50' y2='80' stroke='%23c8860a' stroke-width='2'/><line x1='20' y1='50' x2='80' y2='50' stroke='%23c8860a' stroke-width='2'/></svg>",
-    sizes: "any",
-    type: "image/svg+xml"
-  }]
+  name: "Trace Easy", short_name: "Trace Easy",
+  start_url: ".", display: "fullscreen",
+  background_color: "#000000", theme_color: "#000000",
+  icons: [{ src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><circle cx='50' cy='50' r='30' fill='none' stroke='%23c8860a' stroke-width='4'/><line x1='50' y1='20' x2='50' y2='80' stroke='%23c8860a' stroke-width='2'/><line x1='20' y1='50' x2='80' y2='50' stroke='%23c8860a' stroke-width='2'/></svg>", sizes: "any", type: "image/svg+xml" }]
 };
-const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-const url = URL.createObjectURL(blob);
-const link = document.createElement('link');
-link.rel = 'manifest';
-link.href = url;
-document.head.appendChild(link);
+const _mb = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+const _ml = document.createElement('link'); _ml.rel='manifest'; _ml.href=URL.createObjectURL(_mb);
+document.head.appendChild(_ml);
 </script>
 
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 :root {
-  --cream: #e8d5b7;
-  --ink: #1a1510;
-  --amber: #c8860a;
-  --black: #000000;
-  --ui-bg: rgba(0,0,0,0.72);
-  --ui-border: rgba(232,213,183,0.18);
-  --slider-track: rgba(232,213,183,0.15);
-  --slider-thumb: #c8860a;
-  --handle-size: 28px;
+  --cream: #e8d5b7; --ink: #1a1510; --amber: #c8860a;
+  --ui-bg: rgba(0,0,0,0.72); --ui-border: rgba(232,213,183,0.18);
+  --handle-size: 32px;
 }
-
 html, body {
-  width: 100%; height: 100%;
-  overflow: hidden;
-  background: #000;
-  font-family: 'DM Mono', monospace;
-  color: var(--cream);
-  -webkit-tap-highlight-color: transparent;
-  touch-action: none;
+  width: 100%; height: 100%; overflow: hidden; background: #000;
+  font-family: 'DM Mono', monospace; color: var(--cream);
+  -webkit-tap-highlight-color: transparent; touch-action: none;
 }
+#app { position: fixed; inset: 0; }
 
-#app {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
+/* Camera */
+#cam-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#cam-src { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
-/* ── Camera layer ── */
-#cam-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-video#cam-src {
-  position: absolute;
-  width: 1px; height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* ── Reference image layer ── */
-#ref-layer {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  overflow: hidden;
-}
-
+/* Ref layer — overflow visible so rotated images aren't clipped */
+#ref-layer { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 #ref-img {
-  position: absolute;
+  position: absolute; top: 0; left: 0;
   transform-origin: 0 0;
+  display: none; max-width: none;
+  user-select: none; -webkit-user-select: none;
   will-change: transform;
-  user-select: none;
-  -webkit-user-select: none;
-  display: none;
-  max-width: none;
-  image-rendering: auto;
 }
 
-/* ── Grid overlay ── */
-#grid-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  display: none;
-}
+/* Grid */
+#grid-layer { position: absolute; inset: 0; pointer-events: none; display: none; }
 
-/* ── Perspective handles ── */
-#handles-layer {
-  position: absolute;
-  inset: 0;
-  display: none;
-}
-
+/* Handles */
+#handles-layer { position: absolute; inset: 0; display: none; pointer-events: none; }
 .persp-handle {
-  position: absolute;
-  width: var(--handle-size);
-  height: var(--handle-size);
-  background: var(--amber);
-  border: 2.5px solid #fff;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  cursor: grab;
-  touch-action: none;
-  box-shadow: 0 0 0 3px rgba(200,134,10,0.3), 0 2px 8px rgba(0,0,0,0.6);
-  transition: box-shadow 0.15s;
+  position: absolute; width: var(--handle-size); height: var(--handle-size);
+  background: var(--amber); border: 2.5px solid #fff; border-radius: 50%;
+  transform: translate(-50%,-50%); cursor: grab; touch-action: none; pointer-events: auto;
+  box-shadow: 0 0 0 4px rgba(200,134,10,0.25), 0 2px 10px rgba(0,0,0,0.7);
   z-index: 100;
 }
-.persp-handle:active { box-shadow: 0 0 0 6px rgba(200,134,10,0.4), 0 2px 12px rgba(0,0,0,0.8); }
+.persp-handle:active { box-shadow: 0 0 0 8px rgba(200,134,10,0.35), 0 2px 14px rgba(0,0,0,0.9); }
 
-/* ── Sliders ── */
+/* Lines between handles */
+#persp-lines { position: absolute; inset: 0; pointer-events: none; display: none; overflow: visible; }
+
+/* Sliders */
 .slider-wrap {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  z-index: 50;
-  transition: opacity 0.3s;
+  position: absolute; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  z-index: 50; transition: opacity 0.3s;
 }
-#slider-left  { left: 10px; }
+#slider-left { left: 10px; }
 #slider-right { right: 10px; }
-
 .slider-label {
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  color: var(--cream);
-  opacity: 0.6;
-  text-transform: uppercase;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
+  font-size: 9px; letter-spacing: 0.08em; color: var(--cream); opacity: 0.6;
+  text-transform: uppercase; writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg);
 }
-
 input[type=range].vertical {
-  -webkit-appearance: none;
-  appearance: none;
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 28px;
-  height: 160px;
-  background: transparent;
-  cursor: pointer;
-  touch-action: none;
+  -webkit-appearance: none; appearance: none;
+  writing-mode: vertical-lr; direction: rtl;
+  width: 28px; height: 160px; background: transparent; cursor: pointer; touch-action: none;
 }
 input[type=range].vertical::-webkit-slider-runnable-track {
-  width: 4px;
-  background: var(--slider-track);
-  border-radius: 2px;
-  border: 1px solid rgba(232,213,183,0.12);
+  width: 4px; background: rgba(232,213,183,0.15); border-radius: 2px; border: 1px solid rgba(232,213,183,0.12);
 }
 input[type=range].vertical::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  background: var(--amber);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
-  margin-left: -8px;
-  transition: transform 0.1s;
+  -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--amber); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); margin-left: -9px;
 }
-input[type=range].vertical:active::-webkit-slider-thumb {
-  transform: scale(1.2);
-}
+.slider-val { font-size: 9px; color: var(--cream); opacity: 0.5; letter-spacing: 0.05em; }
 
-.slider-val {
-  font-size: 9px;
-  color: var(--cream);
-  opacity: 0.5;
-  letter-spacing: 0.05em;
-}
-
-/* ── Top bar ── */
+/* Top bar */
 #top-bar {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
-  padding: env(safe-area-inset-top, 0px) 16px 0;
-  z-index: 60;
-  pointer-events: none;
-  transition: opacity 0.3s;
+  position: absolute; top: 0; left: 0; right: 0; height: 60px;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+  padding-top: env(safe-area-inset-top, 0px); z-index: 60; pointer-events: none; transition: opacity 0.3s;
 }
-
 #app-title {
-  font-family: 'Instrument Serif', serif;
-  font-style: italic;
-  font-size: 22px;
-  color: var(--cream);
-  letter-spacing: 0.01em;
-  opacity: 0.9;
-  pointer-events: none;
-  user-select: none;
+  font-family: 'Instrument Serif', serif; font-style: italic; font-size: 22px;
+  color: var(--cream); letter-spacing: 0.01em; opacity: 0.9; user-select: none;
 }
 
-/* ── Bottom bar ── */
+/* Bottom bar */
 #bottom-bar {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
+  position: absolute; bottom: 0; left: 0; right: 0;
   padding: 10px 12px calc(env(safe-area-inset-bottom, 16px) + 10px);
-  background: linear-gradient(to top, rgba(0,0,0,0.72), transparent);
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  gap: 6px;
-  z-index: 60;
-  transition: opacity 0.3s;
+  background: linear-gradient(to top, rgba(0,0,0,0.75), transparent);
+  display: flex; align-items: center; justify-content: space-around; gap: 6px;
+  z-index: 60; transition: opacity 0.3s;
 }
-
 .btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
-  border-radius: 12px;
-  padding: 8px 10px 6px;
-  color: var(--cream);
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  min-width: 52px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 12px;
+  padding: 8px 10px 6px; color: var(--cream); cursor: pointer;
+  user-select: none; -webkit-user-select: none; min-width: 52px;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
 .btn:active { transform: scale(0.92); background: rgba(200,134,10,0.18); }
-.btn.active {
-  background: rgba(200,134,10,0.22);
-  border-color: var(--amber);
-  color: var(--amber);
-}
+.btn.active { background: rgba(200,134,10,0.22); border-color: var(--amber); color: var(--amber); }
 .btn svg { display: block; }
-.btn span {
-  font-size: 9px;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  line-height: 1;
-  opacity: 0.75;
-}
+.btn span { font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; line-height: 1; opacity: 0.75; }
 .btn.active span { opacity: 1; }
 
-/* ── No-camera fallback ── */
+/* No-camera */
 #no-cam {
-  position: absolute;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 16px;
-  background: #0a0a0a;
-  color: var(--cream);
-  text-align: center;
-  padding: 24px;
-  z-index: 200;
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  flex-direction: column; gap: 16px; background: #0a0a0a; color: var(--cream);
+  text-align: center; padding: 24px; z-index: 200;
 }
 #no-cam h2 { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 24px; }
 #no-cam p { font-size: 13px; opacity: 0.6; line-height: 1.5; max-width: 280px; }
 #no-cam button {
-  background: var(--amber);
-  color: #000;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 24px;
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  cursor: pointer;
+  background: var(--amber); color: #000; border: none; border-radius: 10px;
+  padding: 10px 24px; font-family: 'DM Mono', monospace; font-size: 13px; cursor: pointer;
 }
 
-/* ── Hidden UI state ── */
-.ui-hidden #top-bar,
-.ui-hidden #bottom-bar,
-.ui-hidden .slider-wrap {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* ── Grid SVG ── */
-#grid-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
+/* UI hidden */
+.ui-hidden #top-bar, .ui-hidden #bottom-bar, .ui-hidden .slider-wrap { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
-
 <div id="app">
   <canvas id="cam-canvas"></canvas>
   <video id="cam-src" autoplay playsinline muted></video>
@@ -332,6 +157,10 @@ input[type=range].vertical:active::-webkit-slider-thumb {
 
   <canvas id="grid-layer"></canvas>
 
+  <svg id="persp-lines" xmlns="http://www.w3.org/2000/svg">
+    <polygon id="persp-poly" fill="none" stroke="rgba(200,134,10,0.5)" stroke-width="1.5" stroke-dasharray="6,4"/>
+  </svg>
+
   <div id="handles-layer">
     <div class="persp-handle" id="h-tl" data-idx="0"></div>
     <div class="persp-handle" id="h-tr" data-idx="1"></div>
@@ -339,80 +168,47 @@ input[type=range].vertical:active::-webkit-slider-thumb {
     <div class="persp-handle" id="h-bl" data-idx="3"></div>
   </div>
 
-  <!-- Sliders -->
   <div class="slider-wrap" id="slider-left">
     <div class="slider-label">opac.</div>
     <input type="range" class="vertical" id="opacity-slider" min="0" max="100" value="60">
     <div class="slider-val" id="opacity-val">60%</div>
   </div>
-
   <div class="slider-wrap" id="slider-right">
     <div class="slider-label">zoom</div>
     <input type="range" class="vertical" id="zoom-slider" min="10" max="25" value="10">
-    <div class="slider-val" id="zoom-val">1×</div>
+    <div class="slider-val" id="zoom-val">1.0×</div>
   </div>
 
-  <!-- Top bar -->
-  <div id="top-bar">
-    <span id="app-title">Trace Easy</span>
-  </div>
+  <div id="top-bar"><span id="app-title">Trace Easy</span></div>
 
-  <!-- Bottom bar -->
   <div id="bottom-bar">
-    <!-- Upload -->
     <button class="btn" id="btn-upload" aria-label="Carregar imagem">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-        <polyline points="17 8 12 3 7 8"/>
-        <line x1="12" y1="3" x2="12" y2="15"/>
-      </svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       <span>Foto</span>
     </button>
     <input type="file" id="file-input" accept="image/*" style="display:none">
 
-    <!-- Rotate -->
     <button class="btn" id="btn-rotate" aria-label="Rotacionar 90°">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="23 4 23 10 17 10"/>
-        <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
-      </svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
       <span>Girar</span>
     </button>
 
-    <!-- Mirror -->
     <button class="btn" id="btn-mirror" aria-label="Espelhar">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="3" x2="12" y2="21"/>
-        <path d="M5 7l-3 5 3 5M19 7l3 5-3 5"/>
-        <path d="M5 12H1M23 12h-4"/>
-      </svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l-3 5 3 5M19 7l3 5-3 5"/></svg>
       <span>Espelhar</span>
     </button>
 
-    <!-- Grid -->
-    <button class="btn" id="btn-grid" aria-label="Grade de composição">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="1"/>
-        <line x1="9" y1="3" x2="9" y2="21"/>
-        <line x1="15" y1="3" x2="15" y2="21"/>
-        <line x1="3" y1="9" x2="21" y2="9"/>
-        <line x1="3" y1="15" x2="21" y2="15"/>
-      </svg>
+    <button class="btn" id="btn-grid" aria-label="Grade">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
       <span>Grade</span>
     </button>
 
-    <!-- Perspective -->
-    <button class="btn" id="btn-persp" aria-label="Modo perspectiva">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="2,20 8,4 16,4 22,20"/>
-        <line x1="5" y1="20" x2="19" y2="20"/>
-        <line x1="8" y1="4" x2="16" y2="4"/>
-      </svg>
+    <button class="btn" id="btn-persp" aria-label="Perspectiva">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,20 8,4 16,4 22,20"/></svg>
       <span>Perspect.</span>
     </button>
   </div>
 
-  <!-- No camera fallback -->
   <div id="no-cam">
     <h2>Câmera indisponível</h2>
     <p>Permita o acesso à câmera nas configurações do Safari para usar o Trace Easy.</p>
@@ -421,97 +217,86 @@ input[type=range].vertical:active::-webkit-slider-thumb {
 </div>
 
 <script>
-(function() {
+(function () {
 'use strict';
 
-// ── State ───────────────────────────────────────────────────────────────
-const state = {
-  opacity: 0.6,
-  camZoom: 1.0,
-  rotation: 0,       // 0,90,180,270
-  mirrored: false,
-  gridOn: false,
-  perspOn: false,
-  uiVisible: true,
-  imgLoaded: false,
-
-  // Pan/pinch state
-  panX: 0, panY: 0,
-  scaleImg: 1,
-  baseScale: 1,        // fitted scale when image first placed
-  imgNatW: 0, imgNatH: 0,
-
-  // Perspective: screen corners [TL,TR,BR,BL]
-  perspHandles: [[0,0],[0,0],[0,0],[0,0]],
-  imgRect: { x:0, y:0, w:0, h:0 }, // rendered image rect in screen coords
+// ─── State ───────────────────────────────────────────────────────────────────
+const S = {
+  opacity   : 0.6,
+  camZoom   : 1.0,
+  rotation  : 0,        // 0 | 90 | 180 | 270
+  mirrored  : false,
+  gridOn    : false,
+  perspOn   : false,
+  uiVisible : true,
+  imgLoaded : false,
+  // pan/scale in screen space
+  panX: 0, panY: 0, scale: 1,
+  // natural image dims
+  natW: 0, natH: 0,
+  // perspective: 4 screen-space corners [TL,TR,BR,BL]
+  handles: [[0,0],[0,0],[0,0],[0,0]],
+  // display size at entry to perspective mode (after rotation + scale)
+  dispW: 0, dispH: 0,
 };
 
-// ── DOM refs ─────────────────────────────────────────────────────────────
-const camCanvas    = document.getElementById('cam-canvas');
-const camCtx       = camCanvas.getContext('2d');
-const video        = document.getElementById('cam-src');
-const refImg       = document.getElementById('ref-img');
-const refLayer     = document.getElementById('ref-layer');
-const gridCanvas   = document.getElementById('grid-layer');
-const handlesLayer = document.getElementById('handles-layer');
-const opSlider     = document.getElementById('opacity-slider');
-const zoomSlider   = document.getElementById('zoom-slider');
-const opVal        = document.getElementById('opacity-val');
-const zoomVal      = document.getElementById('zoom-val');
-const appEl        = document.getElementById('app');
-const noCam        = document.getElementById('no-cam');
-const fileInput    = document.getElementById('file-input');
+// ─── DOM ─────────────────────────────────────────────────────────────────────
+const camCanvas   = document.getElementById('cam-canvas');
+const camCtx      = camCanvas.getContext('2d');
+const video       = document.getElementById('cam-src');
+const refImg      = document.getElementById('ref-img');
+const refLayer    = document.getElementById('ref-layer');
+const gridCanvas  = document.getElementById('grid-layer');
+const handlesEl   = document.getElementById('handles-layer');
+const perspLines  = document.getElementById('persp-lines');
+const perspPoly   = document.getElementById('persp-poly');
+const opSlider    = document.getElementById('opacity-slider');
+const zoomSlider  = document.getElementById('zoom-slider');
+const opVal       = document.getElementById('opacity-val');
+const zoomVal     = document.getElementById('zoom-val');
+const appEl       = document.getElementById('app');
+const noCam       = document.getElementById('no-cam');
+const fileInput   = document.getElementById('file-input');
+const btnMirror   = document.getElementById('btn-mirror');
+const btnGrid     = document.getElementById('btn-grid');
+const btnPersp    = document.getElementById('btn-persp');
 
-const handles = [
+const handleEls = [
   document.getElementById('h-tl'),
   document.getElementById('h-tr'),
   document.getElementById('h-br'),
   document.getElementById('h-bl'),
 ];
 
-// ── Camera ───────────────────────────────────────────────────────────────
+// ─── Camera ───────────────────────────────────────────────────────────────────
 async function startCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-      },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false,
     });
     video.srcObject = stream;
     await video.play();
     noCam.style.display = 'none';
-    renderLoop();
-  } catch(e) {
-    console.warn('Camera error:', e);
+    renderCam();
+  } catch (e) {
     noCam.style.display = 'flex';
   }
 }
 
 let rafId;
-function renderLoop() {
-  if (rafId) cancelAnimationFrame(rafId);
+function renderCam() {
   function draw() {
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    if (camCanvas.width !== W || camCanvas.height !== H) {
-      camCanvas.width  = W;
-      camCanvas.height = H;
-    }
+    const W = window.innerWidth, H = window.innerHeight;
+    if (camCanvas.width !== W || camCanvas.height !== H) { camCanvas.width = W; camCanvas.height = H; }
     if (video.readyState >= 2) {
-      const vw = video.videoWidth;
-      const vh = video.videoHeight;
+      const vw = video.videoWidth, vh = video.videoHeight;
       if (vw && vh) {
-        const z = state.camZoom;
-        const aspect = vw / vh;
+        const z = S.camZoom, aspect = vw / vh;
         let dw, dh;
         if (W / H > aspect) { dw = W * z; dh = dw / aspect; }
-        else                  { dh = H * z; dw = dh * aspect; }
-        const dx = (W - dw) / 2;
-        const dy = (H - dh) / 2;
-        camCtx.drawImage(video, dx, dy, dw, dh);
+        else                 { dh = H * z; dw = dh * aspect; }
+        camCtx.drawImage(video, (W - dw) / 2, (H - dh) / 2, dw, dh);
       }
     }
     rafId = requestAnimationFrame(draw);
@@ -519,32 +304,74 @@ function renderLoop() {
   draw();
 }
 
-// ── Zoom slider → camera zoom ─────────────────────────────────────────────
-function updateCamZoom(v) {
-  state.camZoom = 1 + (v - 10) / 10 * 1.5; // maps 10-25 → 1.0-2.5
-  zoomVal.textContent = state.camZoom.toFixed(1) + '×';
+// ─── Sliders ─────────────────────────────────────────────────────────────────
+zoomSlider.addEventListener('input', () => {
+  S.camZoom = 1 + (parseInt(zoomSlider.value) - 10) / 10 * 1.5;
+  zoomVal.textContent = S.camZoom.toFixed(1) + '×';
+});
+['touchstart','touchmove','touchend'].forEach(ev => {
+  zoomSlider.addEventListener(ev, e => e.stopPropagation(), {passive:false});
+  opSlider.addEventListener(ev, e => e.stopPropagation(), {passive:false});
+});
+
+opSlider.addEventListener('input', () => {
+  S.opacity = parseInt(opSlider.value) / 100;
+  opVal.textContent = opSlider.value + '%';
+  applyTransform();
+});
+
+// ─── Image fit ───────────────────────────────────────────────────────────────
+function fitImage() {
+  const W = window.innerWidth, H = window.innerHeight;
+  // Account for rotation when fitting
+  const rot = S.rotation;
+  const swapped = rot === 90 || rot === 270;
+  const fitW = swapped ? H : W;
+  const fitH = swapped ? W : H;
+  const s = Math.min(fitW / S.natW, fitH / S.natH) * 0.85;
+  S.scale = s;
+  // Center the display bounding box
+  const dw = swapped ? S.natH * s : S.natW * s;
+  const dh = swapped ? S.natW * s : S.natH * s;
+  S.panX = (W - dw) / 2;
+  S.panY = (H - dh) / 2;
+  if (S.perspOn) exitPerspective();
+  applyTransform();
 }
 
-zoomSlider.addEventListener('input', () => updateCamZoom(parseInt(zoomSlider.value)));
-zoomSlider.addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
-zoomSlider.addEventListener('touchmove',  e => e.stopPropagation(), {passive:false});
-zoomSlider.addEventListener('touchend',   e => e.stopPropagation(), {passive:false});
+/**
+ * Normal (non-perspective) transform.
+ * We set the img to its natural size and compose:
+ *   translate(cx, cy) rotate(rot) scaleX(mirror) scale(s) translate(-natW/2, -natH/2)
+ * where (cx,cy) is the visual center of the image in screen space.
+ *
+ * Visual bounding box center:
+ *   For 0/180°  → center = (panX + natW*s/2,  panY + natH*s/2)
+ *   For 90/270° → center = (panX + natH*s/2,  panY + natW*s/2)
+ */
+function applyTransform() {
+  if (!S.imgLoaded || S.perspOn) return;
+  refImg.style.width  = S.natW + 'px';
+  refImg.style.height = S.natH + 'px';
+  refImg.style.transformOrigin = '0 0';
 
-// ── Opacity slider ────────────────────────────────────────────────────────
-opSlider.addEventListener('input', () => {
-  state.opacity = parseInt(opSlider.value) / 100;
-  opVal.textContent = opSlider.value + '%';
-  applyImageTransform();
-});
-opSlider.addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
-opSlider.addEventListener('touchmove',  e => e.stopPropagation(), {passive:false});
-opSlider.addEventListener('touchend',   e => e.stopPropagation(), {passive:false});
+  const s  = S.scale;
+  const mx = S.mirrored ? -1 : 1;
+  const rot = S.rotation;
+  const swapped = rot === 90 || rot === 270;
+  // Display box width/height (screen footprint)
+  const dw = swapped ? S.natH * s : S.natW * s;
+  const dh = swapped ? S.natW * s : S.natH * s;
+  const cx = S.panX + dw / 2;
+  const cy = S.panY + dh / 2;
 
-// ── Image loading ─────────────────────────────────────────────────────────
-document.getElementById('btn-upload').addEventListener('click', e => {
-  e.stopPropagation();
-  fileInput.click();
-});
+  refImg.style.transform =
+    `translate(${cx}px,${cy}px) rotate(${rot}deg) scaleX(${mx}) scale(${s}) translate(${-S.natW/2}px,${-S.natH/2}px)`;
+  refImg.style.opacity = S.opacity;
+}
+
+// ─── Image load ───────────────────────────────────────────────────────────────
+document.getElementById('btn-upload').addEventListener('click',    e => { e.stopPropagation(); fileInput.click(); });
 document.getElementById('btn-upload').addEventListener('touchend', e => e.stopPropagation());
 
 fileInput.addEventListener('change', e => {
@@ -552,199 +379,147 @@ fileInput.addEventListener('change', e => {
   if (!file) return;
   const url = URL.createObjectURL(file);
   refImg.onload = () => {
-    state.imgNatW = refImg.naturalWidth;
-    state.imgNatH = refImg.naturalHeight;
-    state.imgLoaded = true;
+    S.natW = refImg.naturalWidth;
+    S.natH = refImg.naturalHeight;
+    S.imgLoaded = true;
+    S.rotation = 0; S.mirrored = false;
+    btnMirror.classList.remove('active');
+    refImg.style.display = 'block';
     fitImage();
     fileInput.value = '';
   };
   refImg.src = url;
-  refImg.style.display = 'block';
 });
 
-function fitImage() {
-  const W = window.innerWidth;
-  const H = window.innerHeight;
-  let rw = state.imgNatW, rh = state.imgNatH;
-  // apply rotation to decide dimensions
-  const r = state.rotation;
-  const isLandscape = rw > rh;
-  let fitW, fitH;
-  if (r === 90 || r === 270) { fitW = H; fitH = W; } // swapped
-  else                        { fitW = W; fitH = H; }
-  const scale = Math.min(fitW / rw, fitH / rh) * 0.85;
-  state.baseScale = scale;
-  state.scaleImg  = scale;
-  state.panX = (W - rw * scale) / 2;
-  state.panY = (H - rh * scale) / 2;
-  applyImageTransform();
-  if (state.perspOn) exitPerspective();
-}
-
-// ── Rotate ────────────────────────────────────────────────────────────────
+// ─── Rotate ──────────────────────────────────────────────────────────────────
 document.getElementById('btn-rotate').addEventListener('click', e => {
   e.stopPropagation();
-  if (!state.imgLoaded) return;
-  state.rotation = (state.rotation + 90) % 360;
-  // Re-fit on rotation
+  if (!S.imgLoaded) return;
+  S.rotation = (S.rotation + 90) % 360;
   fitImage();
 });
 document.getElementById('btn-rotate').addEventListener('touchend', e => e.stopPropagation());
 
-// ── Mirror ────────────────────────────────────────────────────────────────
-document.getElementById('btn-mirror').addEventListener('click', e => {
+// ─── Mirror ───────────────────────────────────────────────────────────────────
+btnMirror.addEventListener('click', e => {
   e.stopPropagation();
-  if (!state.imgLoaded) return;
-  state.mirrored = !state.mirrored;
-  document.getElementById('btn-mirror').classList.toggle('active', state.mirrored);
-  applyImageTransform();
+  if (!S.imgLoaded) return;
+  S.mirrored = !S.mirrored;
+  btnMirror.classList.toggle('active', S.mirrored);
+  applyTransform();
 });
-document.getElementById('btn-mirror').addEventListener('touchend', e => e.stopPropagation());
+btnMirror.addEventListener('touchend', e => e.stopPropagation());
 
-// ── Grid ──────────────────────────────────────────────────────────────────
-document.getElementById('btn-grid').addEventListener('click', e => {
+// ─── Grid ─────────────────────────────────────────────────────────────────────
+btnGrid.addEventListener('click', e => {
   e.stopPropagation();
-  state.gridOn = !state.gridOn;
-  document.getElementById('btn-grid').classList.toggle('active', state.gridOn);
+  S.gridOn = !S.gridOn;
+  btnGrid.classList.toggle('active', S.gridOn);
   drawGrid();
 });
-document.getElementById('btn-grid').addEventListener('touchend', e => e.stopPropagation());
+btnGrid.addEventListener('touchend', e => e.stopPropagation());
 
 function drawGrid() {
-  const c = gridCanvas;
-  c.style.display = state.gridOn ? 'block' : 'none';
-  if (!state.gridOn) return;
+  gridCanvas.style.display = S.gridOn ? 'block' : 'none';
+  if (!S.gridOn) return;
   const W = window.innerWidth, H = window.innerHeight;
-  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
-  const ctx = c.getContext('2d');
-  ctx.clearRect(0,0,W,H);
-  ctx.strokeStyle = 'rgba(200,134,10,0.35)';
-  ctx.lineWidth = 0.8;
-  // Rule of thirds
+  if (gridCanvas.width !== W || gridCanvas.height !== H) { gridCanvas.width = W; gridCanvas.height = H; }
+  const ctx = gridCanvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(200,134,10,0.35)'; ctx.lineWidth = 0.8;
   for (let i = 1; i <= 2; i++) {
-    ctx.beginPath(); ctx.moveTo(W*i/3, 0); ctx.lineTo(W*i/3, H); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, H*i/3); ctx.lineTo(W, H*i/3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W*i/3,0); ctx.lineTo(W*i/3,H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,H*i/3); ctx.lineTo(W,H*i/3); ctx.stroke();
   }
-  // Center cross faint
   ctx.strokeStyle = 'rgba(200,134,10,0.18)';
-  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
-  // Diagonal aids
-  ctx.strokeStyle = 'rgba(200,134,10,0.12)';
+  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(200,134,10,0.1)';
   ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(W,H); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(W,0); ctx.lineTo(0,H); ctx.stroke();
 }
 
-// ── Apply image transform (non-perspective) ───────────────────────────────
-function applyImageTransform() {
-  if (!state.imgLoaded) return;
-  if (state.perspOn) return; // handled separately
-  const s = state.scaleImg;
-  const mirrorX = state.mirrored ? -1 : 1;
-  // Build CSS transform
-  const tx = state.panX;
-  const ty = state.panY;
-  // We combine: translate → scale → mirror → rotate
-  // Rotation center: image center after scale
-  const hw = state.imgNatW * s / 2;
-  const hh = state.imgNatH * s / 2;
-  // Transform steps (applied right-to-left in CSS):
-  // 1. place at tx,ty
-  // 2. scale s
-  // 3. mirror
-  // 4. rotate
-  // Using matrix to keep transform-origin simple:
-  refImg.style.transformOrigin = '0 0';
-  refImg.style.width  = state.imgNatW + 'px';
-  refImg.style.height = state.imgNatH + 'px';
-
-  // Compose manually
-  const cx = tx + hw;
-  const cy = ty + hh;
-  const rot = state.rotation;
-  refImg.style.transform =
-    `translate(${cx}px,${cy}px) rotate(${rot}deg) scaleX(${mirrorX}) scale(${s}) translate(-${state.imgNatW/2}px,-${state.imgNatH/2}px)`;
-  refImg.style.opacity = state.opacity;
-
-  // Update rect for perspective handle initialization
-  // We approximate the screen bounding box of the image
-  updateImgRect();
-}
-
-function updateImgRect() {
-  // Get bounding rect of rendered image element
-  const rect = refImg.getBoundingClientRect();
-  state.imgRect = { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
-}
-
-// ── Perspective mode ──────────────────────────────────────────────────────
-document.getElementById('btn-persp').addEventListener('click', e => {
+// ─── Perspective mode ─────────────────────────────────────────────────────────
+btnPersp.addEventListener('click', e => {
   e.stopPropagation();
-  if (!state.imgLoaded) return;
-  if (state.perspOn) exitPerspective();
-  else enterPerspective();
+  if (!S.imgLoaded) return;
+  S.perspOn ? exitPerspective() : enterPerspective();
 });
-document.getElementById('btn-persp').addEventListener('touchend', e => e.stopPropagation());
+btnPersp.addEventListener('touchend', e => e.stopPropagation());
 
 function enterPerspective() {
-  state.perspOn = true;
-  document.getElementById('btn-persp').classList.add('active');
-  handlesLayer.style.display = 'block';
+  // Snapshot the current visual bounding box using getBoundingClientRect.
+  // This gives us the exact screen rect AFTER the composed CSS transform.
+  const rect = refImg.getBoundingClientRect();
 
-  // Snapshot current rendered bounding rect
-  updateImgRect();
-  const { x, y, w, h } = state.imgRect;
+  // Store display dimensions for the homography source space
+  S.dispW = rect.width;
+  S.dispH = rect.height;
 
-  state.perspHandles = [
-    [x,     y    ],  // TL
-    [x + w, y    ],  // TR
-    [x + w, y + h],  // BR
-    [x,     y + h],  // BL
+  // Initialize handles at the four corners of the visual bounding box
+  S.handles = [
+    [rect.left,              rect.top             ],  // TL
+    [rect.left + rect.width, rect.top             ],  // TR
+    [rect.left + rect.width, rect.top + rect.height], // BR
+    [rect.left,              rect.top + rect.height], // BL
   ];
+
+  S.perspOn = true;
+  btnPersp.classList.add('active');
+
+  // Switch img to display-space size (no CSS rotation/scale, matrix3d does everything)
+  refImg.style.transformOrigin = '0 0';
+  refImg.style.width  = S.dispW  + 'px';
+  refImg.style.height = S.dispH + 'px';
+
+  handlesEl.style.display = 'block';
+  perspLines.style.display = 'block';
+
   positionHandles();
   applyPerspective();
 }
 
 function exitPerspective() {
-  state.perspOn = false;
-  document.getElementById('btn-persp').classList.remove('active');
-  handlesLayer.style.display = 'none';
-  // Restore CSS transform
-  applyImageTransform();
+  S.perspOn = false;
+  btnPersp.classList.remove('active');
+  handlesEl.style.display = 'none';
+  perspLines.style.display = 'none';
+  // Restore natural-size element + CSS transform
+  refImg.style.width  = S.natW + 'px';
+  refImg.style.height = S.natH + 'px';
+  applyTransform();
 }
 
 function positionHandles() {
-  handles.forEach((h, i) => {
-    h.style.left = state.perspHandles[i][0] + 'px';
-    h.style.top  = state.perspHandles[i][1] + 'px';
+  handleEls.forEach((h, i) => {
+    h.style.left = S.handles[i][0] + 'px';
+    h.style.top  = S.handles[i][1] + 'px';
   });
+  // Update outline polygon
+  const pts = S.handles.map(h => h.join(',')).join(' ');
+  perspPoly.setAttribute('points', pts);
 }
 
-// Compute homography from 4 src corners (unit square) to 4 dst points
-// Returns matrix3d string for CSS
-function computeMatrix3d(dst) {
-  // dst = [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] TL,TR,BR,BL
-  const [p0, p1, p2, p3] = dst;
-  // Solve homography H from unit square [0,0],[1,0],[1,1],[0,1]
-  // Using direct linear transform (analytical for 4 point)
-  const x0=p0[0], y0=p0[1];
-  const x1=p1[0], y1=p1[1];
-  const x2=p2[0], y2=p2[1];
-  const x3=p3[0], y3=p3[1];
-
-  // Standard 9-param homography solve
-  function solveSystem(A, b) {
-    // 8×8 gaussian elimination
+/**
+ * Compute CSS matrix3d that maps the img element (W×H rectangle, origin at top-left)
+ * to the 4 screen-space destination points in S.handles.
+ *
+ * Strategy: solve homography H mapping unit-square → dst, then scale columns
+ * by 1/dispW and 1/dispH so that H maps [0..dispW, 0..dispH] → dst.
+ * Finally convert to CSS matrix3d column-major 4×4.
+ */
+function computeMatrix3d(dst, srcW, srcH) {
+  // 8-unknown linear system (homogeneous h33=1)
+  function gauss(A, b) {
     const n = 8;
-    const M = A.map((row,i) => [...row, b[i]]);
-    for (let col = 0; col < n; col++) {
-      let maxRow = col;
-      for (let row = col+1; row < n; row++)
-        if (Math.abs(M[row][col]) > Math.abs(M[maxRow][col])) maxRow = row;
-      [M[col], M[maxRow]] = [M[maxRow], M[col]];
-      for (let row = col+1; row < n; row++) {
-        const f = M[row][col] / M[col][col];
-        for (let j = col; j <= n; j++) M[row][j] -= f * M[col][j];
+    const M = A.map((r, i) => [...r, b[i]]);
+    for (let c = 0; c < n; c++) {
+      let mx = c;
+      for (let r = c+1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[mx][c])) mx = r;
+      [M[c], M[mx]] = [M[mx], M[c]];
+      for (let r = c+1; r < n; r++) {
+        const f = M[r][c] / M[c][c];
+        for (let j = c; j <= n; j++) M[r][j] -= f * M[c][j];
       }
     }
     const x = new Array(n).fill(0);
@@ -755,220 +530,148 @@ function computeMatrix3d(dst) {
     return x;
   }
 
-  // Source points: unit square corners
-  const srcPts = [[0,0],[1,0],[1,1],[0,1]];
+  // Source: four corners of the element in its own coordinate space
+  // [0,0], [srcW,0], [srcW,srcH], [0,srcH]  (TL TR BR BL)
+  const src = [[0,0],[srcW,0],[srcW,srcH],[0,srcH]];
   const A = [], b = [];
   for (let i = 0; i < 4; i++) {
-    const [sx, sy] = srcPts[i];
-    const [dx, dy] = dst[i];
-    A.push([sx, sy, 1, 0, 0, 0, -dx*sx, -dx*sy]);
-    b.push(dx);
-    A.push([0, 0, 0, sx, sy, 1, -dy*sx, -dy*sy]);
-    b.push(dy);
+    const [sx,sy] = src[i], [dx,dy] = dst[i];
+    A.push([sx, sy, 1,  0,  0, 0, -dx*sx, -dx*sy]); b.push(dx);
+    A.push([ 0,  0, 0, sx, sy, 1, -dy*sx, -dy*sy]); b.push(dy);
   }
-  const h = solveSystem(A, b);
-  const H = [
-    [h[0], h[1], h[2]],
-    [h[3], h[4], h[5]],
-    [h[6], h[7], 1   ],
-  ];
+  const h = gauss(A, b);
+  // h = [h00,h01,h02, h10,h11,h12, h20,h21]  (h22=1)
 
-  // CSS matrix3d maps from the element's natural space (0..w, 0..h) → screen
-  // We need to scale by 1/w, 1/h since H was computed on unit square
-  const iw = state.imgNatW * state.scaleImg;
-  const ih = state.imgNatH * state.scaleImg;
-  // Scale H columns for image dimensions
-  // H' = H * S where S scales x by 1/iw, y by 1/ih
-  // Then convert to 4×4 column-major CSS matrix3d
-  const a = H[0][0]/iw, b_ = H[0][1]/ih, c_ = H[0][2];
-  const d = H[1][0]/iw, e_ = H[1][1]/ih, f_ = H[1][2];
-  const g = H[2][0]/iw, k  = H[2][1]/ih, l  = H[2][2];
-
-  // CSS matrix3d is column-major, perspective in row 3
-  // Mapping: [x,y,1] (homogeneous) → [x',y',w']
-  // matrix3d(a,d,0,g, b,e,0,k, 0,0,1,0, c,f,0,l)
-  // col1=[a,d,0,g], col2=[b,e,0,k], col3=[0,0,1,0], col4=[c,f,0,l]
-  return `matrix3d(${a},${d},0,${g}, ${b_},${e_},0,${k}, 0,0,1,0, ${c_},${f_},0,${l})`;
+  // CSS matrix3d is column-major, maps element pixel coords (x,y,0,1) → clip space.
+  // We need a 4x4 where the 2D projective mapping is in the XY plane:
+  //
+  //  | h00  h01  0  h02 |   column-major in CSS:
+  //  | h10  h11  0  h12 |   matrix3d(m00,m10,m20,m30, m01,m11,m21,m31, ...)
+  //  |  0    0   1   0  |
+  //  | h20  h21  0   1  |
+  //
+  // So:
+  //   col0 = (h00, h10, 0, h20)
+  //   col1 = (h01, h11, 0, h21)
+  //   col2 = (0,   0,   1, 0  )
+  //   col3 = (h02, h12, 0, 1  )
+  const [h00,h01,h02,h10,h11,h12,h20,h21] = h;
+  return `matrix3d(${h00},${h10},0,${h20}, ${h01},${h11},0,${h21}, 0,0,1,0, ${h02},${h12},0,1)`;
 }
 
 function applyPerspective() {
-  if (!state.perspOn || !state.imgLoaded) return;
-  const dst = state.perspHandles;
-  refImg.style.transformOrigin = '0 0';
-  refImg.style.width  = state.imgNatW + 'px';
-  refImg.style.height = state.imgNatH + 'px';
-  const mat = computeMatrix3d(dst);
-  const mirrorX = state.mirrored ? -1 : 1;
-  // Apply scale + mirror then perspective matrix on top
-  const s = state.scaleImg;
-  // We bake base scale into the dst computation, so img is rendered at 1:1 then warped
-  // Actually: we want the img element at its natural size, then apply a matrix that maps it to dst corners
-  // So: transform = matrix3d(H mapping [0..natW, 0..natH] → dst corners)
+  if (!S.perspOn || !S.imgLoaded) return;
+  const mat = computeMatrix3d(S.handles, S.dispW, S.dispH);
   refImg.style.transform = mat;
-  refImg.style.opacity = state.opacity;
+  refImg.style.opacity = S.opacity;
 }
 
-// ── Handle dragging ───────────────────────────────────────────────────────
-let activeHandle = null;
-let handleStart = {hx:0, hy:0, tx:0, ty:0};
+// ─── Handle dragging ──────────────────────────────────────────────────────────
+let activeIdx = -1;
+let dragStart = { hx:0, hy:0, tx:0, ty:0 };
 
-handles.forEach((h, idx) => {
-  h.addEventListener('touchstart', e => {
-    e.stopPropagation();
-    e.preventDefault();
+handleEls.forEach((el, idx) => {
+  el.addEventListener('touchstart', e => {
+    e.stopPropagation(); e.preventDefault();
+    activeIdx = idx;
     const t = e.touches[0];
-    activeHandle = idx;
-    handleStart = {
-      hx: state.perspHandles[idx][0],
-      hy: state.perspHandles[idx][1],
-      tx: t.clientX, ty: t.clientY,
-    };
+    dragStart = { hx: S.handles[idx][0], hy: S.handles[idx][1], tx: t.clientX, ty: t.clientY };
   }, {passive:false});
 });
 
 document.addEventListener('touchmove', e => {
-  if (activeHandle === null) return;
-  if (!state.perspOn) return;
+  if (activeIdx < 0 || !S.perspOn) return;
   e.preventDefault();
   const t = e.touches[0];
-  const dx = t.clientX - handleStart.tx;
-  const dy = t.clientY - handleStart.ty;
-  state.perspHandles[activeHandle] = [
-    handleStart.hx + dx,
-    handleStart.hy + dy,
+  S.handles[activeIdx] = [
+    dragStart.hx + t.clientX - dragStart.tx,
+    dragStart.hy + t.clientY - dragStart.ty,
   ];
   positionHandles();
   applyPerspective();
 }, {passive:false});
 
 document.addEventListener('touchend', e => {
-  if (activeHandle !== null) {
-    activeHandle = null;
-    e.stopPropagation();
-  }
+  if (activeIdx >= 0) { activeIdx = -1; e.stopPropagation(); }
 });
 
-// ── Pan / Pinch ───────────────────────────────────────────────────────────
-let panState = null;
-let pinchState = null;
+// ─── Pan / Pinch (non-perspective) ────────────────────────────────────────────
+let panSt = null, pinchSt = null;
 
-function touchDist(t1, t2) {
-  const dx = t2.clientX - t1.clientX;
-  const dy = t2.clientY - t1.clientY;
-  return Math.sqrt(dx*dx + dy*dy);
-}
-function touchMid(t1, t2) {
-  return [(t1.clientX+t2.clientX)/2, (t1.clientY+t2.clientY)/2];
-}
+function dist2(a, b) { return Math.hypot(b.clientX-a.clientX, b.clientY-a.clientY); }
+function mid2(a,  b) { return [(a.clientX+b.clientX)/2, (a.clientY+b.clientY)/2]; }
 
 refLayer.addEventListener('touchstart', e => {
-  if (state.perspOn) return;
-  e.stopPropagation();
-  e.preventDefault();
+  if (S.perspOn) return;
+  e.stopPropagation(); e.preventDefault();
   if (e.touches.length === 1) {
-    panState = {
-      startX: e.touches[0].clientX,
-      startY: e.touches[0].clientY,
-      origX: state.panX,
-      origY: state.panY,
-    };
-    pinchState = null;
+    panSt   = { sx: e.touches[0].clientX, sy: e.touches[0].clientY, ox: S.panX, oy: S.panY };
+    pinchSt = null;
   } else if (e.touches.length === 2) {
-    panState = null;
-    pinchState = {
-      dist: touchDist(e.touches[0], e.touches[1]),
-      mid:  touchMid(e.touches[0],  e.touches[1]),
-      origScale: state.scaleImg,
-      origX: state.panX,
-      origY: state.panY,
-    };
+    panSt   = null;
+    pinchSt = { d: dist2(e.touches[0],e.touches[1]), m: mid2(e.touches[0],e.touches[1]), os: S.scale, ox: S.panX, oy: S.panY };
   }
 }, {passive:false});
 
 refLayer.addEventListener('touchmove', e => {
-  if (state.perspOn) return;
-  e.stopPropagation();
-  e.preventDefault();
-  if (e.touches.length === 1 && panState) {
-    const dx = e.touches[0].clientX - panState.startX;
-    const dy = e.touches[0].clientY - panState.startY;
-    state.panX = panState.origX + dx;
-    state.panY = panState.origY + dy;
-    applyImageTransform();
-  } else if (e.touches.length === 2 && pinchState) {
-    const newDist = touchDist(e.touches[0], e.touches[1]);
-    const ratio = newDist / pinchState.dist;
-    const newScale = Math.min(8, Math.max(0.1, pinchState.origScale * ratio));
-    const mid = touchMid(e.touches[0], e.touches[1]);
-    // Scale around pinch midpoint
-    const relX = mid[0] - pinchState.origX;
-    const relY = mid[1] - pinchState.origY;
-    state.panX = mid[0] - relX * (newScale / pinchState.origScale);
-    state.panY = mid[1] - relY * (newScale / pinchState.origScale);
-    state.scaleImg = newScale;
-    applyImageTransform();
+  if (S.perspOn) return;
+  e.stopPropagation(); e.preventDefault();
+  if (e.touches.length === 1 && panSt) {
+    S.panX = panSt.ox + e.touches[0].clientX - panSt.sx;
+    S.panY = panSt.oy + e.touches[0].clientY - panSt.sy;
+    applyTransform();
+  } else if (e.touches.length === 2 && pinchSt) {
+    const nd = dist2(e.touches[0],e.touches[1]);
+    const ns = Math.min(8, Math.max(0.05, pinchSt.os * nd / pinchSt.d));
+    const m  = mid2(e.touches[0],e.touches[1]);
+    S.panX = m[0] - (m[0] - pinchSt.ox) * (ns / pinchSt.os);
+    S.panY = m[1] - (m[1] - pinchSt.oy) * (ns / pinchSt.os);
+    S.scale = ns;
+    applyTransform();
   }
 }, {passive:false});
 
 refLayer.addEventListener('touchend', e => {
-  if (state.perspOn) return;
+  if (S.perspOn) return;
   e.stopPropagation();
-  if (e.touches.length < 1) panState = null;
-  if (e.touches.length < 2) pinchState = null;
+  if (e.touches.length < 1) panSt   = null;
+  if (e.touches.length < 2) pinchSt = null;
 }, {passive:false});
 
-// ── Toggle UI visibility on tap ───────────────────────────────────────────
+// ─── UI toggle ────────────────────────────────────────────────────────────────
 camCanvas.addEventListener('touchend', e => {
-  if (state.perspOn) return;
-  // Only if quick tap (no move)
-  state.uiVisible = !state.uiVisible;
-  appEl.classList.toggle('ui-hidden', !state.uiVisible);
+  if (S.perspOn) return;
+  S.uiVisible = !S.uiVisible;
+  appEl.classList.toggle('ui-hidden', !S.uiVisible);
 });
 
-// ── Bottom bar & sliders stop propagation ─────────────────────────────────
-document.getElementById('bottom-bar').addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
-document.getElementById('bottom-bar').addEventListener('touchend',   e => e.stopPropagation(), {passive:false});
-document.getElementById('bottom-bar').addEventListener('click',      e => e.stopPropagation());
+// ─── Stop propagation on all UI elements ────────────────────────────────────
+['touchstart','touchend','click'].forEach(ev => {
+  document.getElementById('bottom-bar').addEventListener(ev, e => e.stopPropagation(), {passive:false});
+  document.getElementById('top-bar').addEventListener(ev, e => e.stopPropagation(), {passive:false});
+  document.getElementById('slider-left').addEventListener(ev, e => e.stopPropagation(), {passive:false});
+  document.getElementById('slider-right').addEventListener(ev, e => e.stopPropagation(), {passive:false});
+});
 
-document.getElementById('top-bar').addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
-document.getElementById('top-bar').addEventListener('touchend',   e => e.stopPropagation(), {passive:false});
-
-document.getElementById('slider-left').addEventListener('touchstart',  e => e.stopPropagation(), {passive:false});
-document.getElementById('slider-right').addEventListener('touchstart', e => e.stopPropagation(), {passive:false});
-
-// ── Retry camera ──────────────────────────────────────────────────────────
+// ─── Retry camera ────────────────────────────────────────────────────────────
 document.getElementById('btn-retry-cam').addEventListener('click', e => {
-  e.stopPropagation();
-  noCam.style.display = 'none';
-  startCamera();
+  e.stopPropagation(); noCam.style.display = 'none'; startCamera();
 });
 
-// ── Resize ────────────────────────────────────────────────────────────────
+// ─── Resize ───────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
-  if (state.gridOn) drawGrid();
-  if (state.imgLoaded && !state.perspOn) applyImageTransform();
+  if (S.gridOn) drawGrid();
+  if (S.imgLoaded && !S.perspOn) applyTransform();
 });
 
-// ── Init ──────────────────────────────────────────────────────────────────
-startCamera();
-
-// Service Worker
+// ─── Service Worker ───────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
-  const swCode = `
-self.addEventListener('install', e => self.skipWaiting());
-self.addEventListener('activate', e => clients.claim());
-self.addEventListener('fetch', e => {
-  e.respondWith(caches.open('trace-easy-v1').then(c =>
-    c.match(e.request).then(r => r || fetch(e.request).then(res => {
-      c.put(e.request, res.clone()); return res;
-    }).catch(() => r))
-  ));
-});
-`;
-  const swBlob = new Blob([swCode], {type:'application/javascript'});
-  const swUrl  = URL.createObjectURL(swBlob);
-  navigator.serviceWorker.register(swUrl).catch(() => {});
+  const sw = `self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>clients.claim());self.addEventListener('fetch',e=>{e.respondWith(caches.open('te-v1').then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(res=>{c.put(e.request,res.clone());return res;}).catch(()=>r))));});`;
+  navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(()=>{});
 }
+
+// ─── Boot ────────────────────────────────────────────────────────────────────
+startCamera();
 
 })();
 </script>
