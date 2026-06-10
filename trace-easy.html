@@ -520,31 +520,24 @@
   }
 
   // ── Perspective math ──
-  // Computes CSS matrix3d from 4 destination corners using the standard
-  // 4-point perspective homography (browser-native, no library needed).
   function applyPerspTransform() {
-    const W = imgEl.naturalWidth  || imgEl.offsetWidth  || window.innerWidth;
-    const H = imgEl.naturalHeight || imgEl.offsetHeight || window.innerHeight;
-
-    // Rendered size of the img element (object-fit:contain)
     const cw = window.innerWidth, ch = window.innerHeight;
-    const scale = Math.min(cw/W, ch/H);
-    const rw = W*scale, rh = H*scale;
-    const ox = (cw-rw)/2, oy = (ch-rh)/2; // top-left of rendered image
+    const W = imgEl.naturalWidth  || cw;
+    const H = imgEl.naturalHeight || ch;
+    const scale = Math.min(cw/W, ch/H) * imgZoom;
+    const rw = W * scale, rh = H * scale;
+    const ox = (cw - rw) / 2 + position.x;
+    const oy = (ch - rh) / 2 + position.y;
 
-    // Source corners (rendered image space, before transform)
+    // Source corners in local image space (origin = top-left of rendered image)
     const src = [[0,0],[rw,0],[rw,rh],[0,rh]];
 
-    // Destination corners (viewport absolute px)
-    const dst = corners.map(c => [c.x, c.y]);
-
-    // Translate dst to image-element local space
-    const dstL = dst.map(([x,y]) => [x - ox, y - oy]);
+    // Destination corners in same local space
+    const dstL = corners.map(c => [c.x - ox, c.y - oy]);
 
     const m = computeHomography(src, dstL);
     if (!m) return;
 
-    // CSS matrix3d is column-major 4x4
     imgEl.style.transformOrigin = '0 0';
     imgEl.style.transform = `translate(${ox}px,${oy}px) matrix3d(
       ${m[0]},${m[3]},0,${m[6]},
@@ -592,19 +585,24 @@
 
   // ── Init corners from current rendered image rect ──
   function initCorners() {
-    const cw = window.innerWidth, ch = window.innerHeight;
-    const W = imgEl.naturalWidth  || cw;
-    const H = imgEl.naturalHeight || ch;
-    const scale = Math.min(cw/W, ch/H);
-    const rw = W*scale, rh = H*scale;
-    const ox = (cw-rw)/2, oy = (ch-rh)/2;
-    corners = [
-      {x: ox,    y: oy},
-      {x: ox+rw, y: oy},
-      {x: ox+rw, y: oy+rh},
-      {x: ox,    y: oy+rh},
-    ];
-    syncHandles();
+    // Reset transform so getBoundingClientRect reflects the true rendered rect
+    imgEl.style.transformOrigin = 'center center';
+    const sx = flipped ? -imgZoom : imgZoom;
+    imgEl.style.transform =
+      `translate(${position.x}px,${position.y}px) rotate(${rotation}deg) scale(${sx},${imgZoom})`;
+
+    // Use rAF to ensure layout is flushed before reading rect
+    requestAnimationFrame(() => {
+      const r = imgEl.getBoundingClientRect();
+      corners = [
+        {x: r.left,  y: r.top},
+        {x: r.right, y: r.top},
+        {x: r.right, y: r.bottom},
+        {x: r.left,  y: r.bottom},
+      ];
+      syncHandles();
+      applyTransform();
+    });
   }
 
   function syncHandles() {
@@ -726,7 +724,8 @@
 
   // ── Tap to toggle controls ──
   appEl.addEventListener('click', e => {
-    if (!hasImage || isUI(e.target)) return;
+    if (!hasImage) return;
+    if (e.target.closest('#level-wrap, .slider-track, #bottom-bar, #tip, #empty-state, #camera-error, #upload-btn-empty, .p-handle')) return;
     controlsVisible ? hideControls() : showControls();
   });
 
